@@ -19,17 +19,6 @@ This blog is hosted on [Vercel](https://vercel.com/), built with [Next.js](https
 
 A huge thanks to [Timothy Lin](https://twitter.com/timlrxx) for the minimal, lightweight, and super easy-to-customize blog starter.
 
-A few major over-engineering-changes from the original repo:
-
-- ⚛️ Upgrading to **React 18**, **NextJS 13**
-- 🎉 Adopting **Typescript**, committing with [Conventional Commits](https://www.conventionalcommits.org/)
-- 📊 Monitoring site with [Umami](https://umami.is/) website analytics
-- 👀 Theming in dark mode with [Github dark dimmed](https://github.blog/changelog/2021-04-14-dark-and-dimmed-themes-are-now-generally-available/) colors for better contrast
-- 👨‍💻 Making a lot of changes to the UI, new homepage design, adding `ProfileCard`, `CareerTimeline` components, adding `/snippets`, `/resume` page, etc.
-- 📥 Bumping up `mdx-bundler`, `rehype`/`remark` plugins and dependencies to the latest version
-
-_This blog have a legacy version built with **Gatsby** which can be found [here](https://leo-blog-legacy.vercel.app/)_.
-
 ## Assets
 
 The images in this blog are from [Unsplash](https://unsplash.com/), gifs from [GIPHY](https://giphy.com/), and illustrations are from [Storyset](https://storyset.com/).
@@ -38,4 +27,4 @@ Thanks for the free resources 🙏
 
 ---
 
-Copyright (c) 2023 Tuan Anh Huynh (Leo) - Alrights reserved.
+Copyright (c) 2023 Ozgur Gurcan - Alrights reserved.

@@ -21,7 +21,7 @@ export function TypedBios() {
     <div>
       <ul id="bios" className="hidden">
         <li>
-          I'm aliased as <b className="font-medium">Leo</b> at work.
+          I'm aliased as <b className="font-medium">Ozgur</b> at work.
         </li>
         <li>I'm a learner, builder, and freedom seeker.</li>
         <li>
