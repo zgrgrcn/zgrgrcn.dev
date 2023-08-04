@@ -13,23 +13,23 @@ export let siteMetadata = {
   image: '/static/images/logo.jpg',
   socialBanner: '/static/images/logo.jpg',
   email: 'ozgurgurcan1996@gmail.com',
-  github: 'https://github.com/hta218',
-  twitter: 'https://twitter.com/hta218_',
-  facebook: 'https://facebook.com/hta218',
-  youtube: 'https://www.youtube.com/@hta218_',
-  linkedin: 'https://www.linkedin.com/in/hta218/',
+  github: 'https://github.com/zgrgrcn',
+  twitter: 'https://twitter.com',
+  facebook: 'https://facebook.com',
+  youtube: 'https://www.youtube.com',
+  linkedin: 'https://www.linkedin.com/in/zgrgrcn/',
   locale: 'en-US',
   analyticsURL: 'https://analytics.zgrgrcn-dev.vercel.app/share/jkwRskv0/zgrgrcn-dev.vercel.app',
   analytics: {
     plausibleDataDomain: '', // e.g. tailwind-nextjs-starter-blog.vercel.app
     simpleAnalytics: false, // true or false
-    umamiWebsiteId: '2df62ae5-7f13-455b-8e54-c15b96ff2b8b', // e.g. 123e4567-e89b-12d3-a456-426614174000
+    umamiWebsiteId: '6f66ac90-b71b-4890-ad6f-051a8a4d0b07', // e.g. 123e4567-e89b-12d3-a456-426614174000
     googleAnalyticsId: '', // e.g. UA-000000-2 or G-XXXXXXX
   },
   socialAccounts: {
-    github: 'hta218',
-    twitter: 'hta218_',
-    linkedin: 'hta218',
+    github: 'zgrgrcn',
+    twitter: '',
+    linkedin: 'zgrgrcn',
   },
 }
 
