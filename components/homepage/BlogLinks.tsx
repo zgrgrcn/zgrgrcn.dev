@@ -41,6 +41,12 @@ export function BlogLinks() {
           Traffic & engagement of this site
         </span>
       </Link>
+      <Link href="/constant" className="hover:underline">
+        <Twemoji emoji="email" />
+        <span data-umami-event="home-link-resume" className="ml-1.5">
+          Contact to me
+        </span>
+      </Link>
     </div>
   )
 }
