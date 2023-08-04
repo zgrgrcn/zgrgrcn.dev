@@ -6,7 +6,7 @@ export function UmamiScript() {
     <Script
       async
       data-website-id={siteMetadata.analytics.umamiWebsiteId}
-      src="https://analytics.zgrgrcn-dev.vercel.app/script.js"
+      src="https://analytics.umami.is/script.js"
     />
   )
 }
