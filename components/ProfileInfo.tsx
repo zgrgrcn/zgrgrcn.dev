@@ -5,7 +5,7 @@ export function ProfileCardInfo() {
   return (
     <div className="hidden py-4 xl:block xl:px-6">
       <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Ozgur Gurcan</h3>
-      <h5 className="py-2 text-gray-700 dark:text-gray-400">Learner | Builder</h5>
+      <h5 className="py-2 text-gray-700 dark:text-gray-400">Learner | Software Engineer</h5>
       <div className="mb-2 mt-4 space-y-4">
         <div className="flex items-center text-gray-700 dark:text-gray-200">
           <svg
@@ -24,14 +24,15 @@ export function ProfileCardInfo() {
           </svg>
 
           <p className="px-2">
-            CTO / Co.Founder @{' '}
+            Backend Developer @{' '}
             <a
               target="_blank"
-              href="https://weaverse.io"
+              href="https://www.linkedin.com/company/getir"
               rel="noreferrer"
               className="hover:underline"
+              style={{ color: '#5d3ebc' }}
             >
-              Weaverse
+              Getir
             </a>
           </p>
         </div>
@@ -118,16 +119,16 @@ export function ProfileCardInfo() {
             >
               in/{siteMetadata.socialAccounts.linkedin}
             </a>
-            <span className="text-gray-400 dark:text-gray-500">|</span>
-            {/* <a
-              target="_blank"
-              href={siteMetadata.twitter}
-              rel="noreferrer"
-              className="hover:underline"
-              data-umami-event="profile-card-twitter"
-            >
-              tw/{siteMetadata.socialAccounts.twitter}
-            </a> */}
+            {/*<span className="text-gray-400 dark:text-gray-500">|</span>*/}
+            {/*<a*/}
+            {/*  target="_blank"*/}
+            {/*  href={siteMetadata.twitter}*/}
+            {/*  rel="noreferrer"*/}
+            {/*  className="hover:underline"*/}
+            {/*  data-umami-event="profile-card-twitter"*/}
+            {/*>*/}
+            {/*  tw/{siteMetadata.socialAccounts.twitter}*/}
+            {/*</a>*/}
           </p>
         </div>
       </div>

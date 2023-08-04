@@ -1,7 +1,7 @@
 import fs from 'fs'
 import { MDXLayoutRenderer } from '~/components/MDXComponents'
 import { PageTitle } from '~/components/PageTitle'
-import { POSTS_PER_PAGE } from '~/constant'
+import { POSTS_PER_PAGE_COUNT } from '~/constant'
 import { getCommentConfigs } from '~/libs/comment'
 import { formatSlug, getFiles } from '~/libs/files'
 import { generateRss } from '~/libs/generate-rss'
@@ -27,7 +27,7 @@ export async function getStaticProps({ params }: { params: { slug: string[] } })
   let postIndex = allPosts.findIndex((post) => formatSlug(post.slug) === params.slug.join('/'))
   let prev = allPosts[postIndex + 1] || null
   let next = allPosts[postIndex - 1] || null
-  let page = Math.ceil((postIndex + 1) / POSTS_PER_PAGE)
+  let page = Math.ceil((postIndex + 1) / POSTS_PER_PAGE_COUNT)
   let post = await getFileBySlug('blog', params.slug.join('/'))
 
   let authors = post.frontMatter.authors || ['default']

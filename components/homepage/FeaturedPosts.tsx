@@ -1,4 +1,4 @@
-import { FEATURED_POSTS } from '~/constant'
+import { FEATURED_POSTS_COUNT } from '~/constant'
 import type { BlogFrontMatter } from '~/types'
 import { formatDate } from '~/utils/date'
 import { BlogTags } from '../blog/BlogTags'
@@ -9,7 +9,7 @@ export function FeaturedPosts({ posts }: { posts: BlogFrontMatter[] }) {
     <div className="border-t border-gray-200 dark:border-gray-700">
       <ul className="divide-y divide-gray-200 dark:divide-gray-700">
         {!posts.length && 'No posts found.'}
-        {posts.slice(0, FEATURED_POSTS).map((frontMatter) => {
+        {posts.slice(0, FEATURED_POSTS_COUNT).map((frontMatter) => {
           let { slug, date, title, summary, tags } = frontMatter
           return (
             <li key={slug} className="py-12">
@@ -51,7 +51,7 @@ export function FeaturedPosts({ posts }: { posts: BlogFrontMatter[] }) {
           )
         })}
       </ul>
-      {posts.length > FEATURED_POSTS && (
+      {posts.length > FEATURED_POSTS_COUNT && (
         <div className="flex justify-end text-base font-medium leading-6">
           <Link
             href="/blog"

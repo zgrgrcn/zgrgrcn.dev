@@ -55,7 +55,7 @@ export function ProfileCard() {
         className="flex flex-col overflow-hidden bg-white shadow-cyan-100/50 transition-all duration-200 ease-out dark:bg-dark dark:shadow-cyan-700/50 xl:rounded-lg xl:shadow-lg"
       >
         <Image
-          src={'/static/images/logo.jpg'}
+          src={'/static/images/logo.jpeg'}
           alt="avatar"
           width={550}
           height={350}
@@ -63,7 +63,6 @@ export function ProfileCard() {
             objectPosition: '50% 16%',
             objectFit: 'cover',
             width: '100%',
-            aspectRatio: '17/11',
           }}
         />
         <SpotifyNowPlaying />
