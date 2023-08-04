@@ -60,7 +60,7 @@ export function ProfileCardInfo() {
           <p className="px-2">
             [::1]:443 - Izmir,
             <span className="absolute ml-1 inline-flex pt-px">
-              <Twemoji emoji="flag-vietnam" />
+              <Twemoji emoji="flag-turkey" />
             </span>
           </p>
         </div>
@@ -119,7 +119,7 @@ export function ProfileCardInfo() {
               in/{siteMetadata.socialAccounts.linkedin}
             </a>
             <span className="text-gray-400 dark:text-gray-500">|</span>
-            <a
+            {/* <a
               target="_blank"
               href={siteMetadata.twitter}
               rel="noreferrer"
@@ -127,7 +127,7 @@ export function ProfileCardInfo() {
               data-umami-event="profile-card-twitter"
             >
               tw/{siteMetadata.socialAccounts.twitter}
-            </a>
+            </a> */}
           </p>
         </div>
       </div>

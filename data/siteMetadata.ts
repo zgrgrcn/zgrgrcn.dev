@@ -19,7 +19,7 @@ export let siteMetadata = {
   youtube: 'https://www.youtube.com',
   linkedin: 'https://www.linkedin.com/in/zgrgrcn/',
   locale: 'en-US',
-  analyticsURL: 'https://analytics.zgrgrcn-dev.vercel.app/share/jkwRskv0/zgrgrcn-dev.vercel.app',
+  analyticsURL: 'https://analytics.umami.is/share/Z3Z7vBqsecBPjMDf/zgrgrcn-dev.vercel.app',
   analytics: {
     plausibleDataDomain: '', // e.g. tailwind-nextjs-starter-blog.vercel.app
     simpleAnalytics: false, // true or false
