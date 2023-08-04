@@ -4,6 +4,7 @@ import 'css/twemoji.css'
 import { ThemeProvider } from 'next-themes'
 import Head from 'next/head'
 import { Analytics } from '~/components/analytics'
+import { Analytics as VercelAnaltics } from '@vercel/analytics/react'
 import { LayoutWrapper } from '~/components/LayoutWrapper'
 
 export default function App({ Component, pageProps }) {
@@ -14,6 +15,7 @@ export default function App({ Component, pageProps }) {
         <meta content="width=device-width, initial-scale=1" name="viewport" />
       </Head>
       <Analytics />
+      <VercelAnaltics />
       <LayoutWrapper>
         <Component {...pageProps} />
       </LayoutWrapper>
