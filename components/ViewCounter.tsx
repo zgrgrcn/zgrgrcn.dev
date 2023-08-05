@@ -8,12 +8,9 @@ export function ViewCounter({ slug, className }: ViewCounterProps) {
   let views = Number(data?.total)
 
   useEffect(() => {
-    // let registerView = () =>
     fetch(`/api/views/${slug}`, {
       method: 'POST',
     }).catch((err) => console.warn(err))
-
-    // registerView()
   }, [slug])
 
   return <span className={className}>{`${views > 0 ? views.toLocaleString() : '–––'} views`}</span>

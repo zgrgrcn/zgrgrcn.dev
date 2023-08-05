@@ -7,6 +7,9 @@ export default async function fetchGithubRepo(req: NextApiRequest, res: NextApiR
   if (!repo) {
     return res.status(400).json({ message: 'Missing repo query param' })
   }
+  if (repo === 'undefined') {
+    return res.status(200).json({ message: 'ok', repository: null })
+  }
   if (!process.env.GITHUB_API_TOKEN) {
     return res.status(500).json({ message: 'Missing `GITHUB_API_TOKEN` env variable' })
   }
