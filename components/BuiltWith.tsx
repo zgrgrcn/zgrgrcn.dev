@@ -22,6 +22,12 @@ export function BuiltWith() {
         <Link href="https://umami.is?ref=ozgurgurcan.dev" className="pl-px">
           <DevIcon type="Umami" className="h-5 w-5" />
         </Link>
+        <Link href="https://www.mongodb.com/atlas/database?ref=ozgurgurcan.dev">
+          <DevIcon type="Mongo" className="h-5 w-5" />
+        </Link>
+        <Link href="https://domains.google/?ref=ozgurgurcan.dev">
+          <DevIcon type="GoogleDomains" className="h-5 w-5" />
+        </Link>
       </div>
       <span className="px-1 text-gray-400 dark:text-gray-500">-</span>
       <Link

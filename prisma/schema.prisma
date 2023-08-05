@@ -6,11 +6,12 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model views {
-  slug  String @id @db.VarChar(128)
-  count BigInt @default(1)
+  id    String  @id @default(auto()) @map("_id") @db.ObjectId
+  slug  String @unique
+  count Int @default(1)
 }

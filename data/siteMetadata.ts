@@ -1,9 +1,9 @@
 export let siteMetadata = {
-  title: "Ozgur's blog - Ozgur's coding journey",
+  title: "Ozgur's blog",
   author: 'Ozgur Gurcan',
   fullName: 'Ozgur Gurcan',
-  headerTitle: "Ozgur's blog - Ozgur's coding journey",
-  footerTitle: "Ozgur's blog - Ozgur's coding journey",
+  headerTitle: "Ozgur's blog",
+  footerTitle: "Ozgur's blog",
   description:
     "Ozgur's coding journey - work and life stories through the keyboard of an open-minded Software Engineer",
   language: 'en-us',
