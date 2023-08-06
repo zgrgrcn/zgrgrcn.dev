@@ -1,14 +1,20 @@
 import type { Project } from '~/types'
 
 export let projectsData: Project[] = [
-  {
-    type: 'work',
-    title: 'todo: title',
-    description: `todo: description`,
-    imgSrc: '/static/images/todo.jpg',
-    url: 'https://www.google.com?ref=ozgurgurcan.dev',
-    builtWith: ['todo'],
-  },
+  //   {
+  //     type: 'work',
+  //     title: 'Bizitravel',
+  //     description: `Bizitravel is a new generation corporate travel management platform developed in cooperation with Amadeus in response to the ever-increasing travel needs of the corporations.
+  //
+  // Throughout the development process, a number of needs analyzes have been carried out with leading companies and stakeholders in the travel industry which resulted an innovative and perfectionist product that meets highly sophisticated international standards.
+  //
+  // Bizitravel's technology have been fully supported by Tübitak-TEYDEB program during the development.
+  //
+  // `,
+  //     imgSrc: '/static/images/bizitravel.png',
+  //     url: 'https://www.bizitravel.com/en/index.html',
+  //     builtWith: [''],
+  //   },
   // {
   //   type: 'work',
   //   title: 'Pilot - Shopify Hydrogen theme',
