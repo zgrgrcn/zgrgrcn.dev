@@ -10,6 +10,7 @@ import { Twemoji } from '~/components/Twemoji'
 import { siteMetadata } from '~/data/siteMetadata'
 import { getAllFilesFrontMatter } from '~/libs/mdx'
 import type { BlogFrontMatter } from '~/types'
+import SocialAccounts from '~/components/SocialAccounts'
 
 export function getStaticProps() {
   let posts = getAllFilesFrontMatter('blog')
@@ -27,6 +28,7 @@ export default function Home({ posts }: { posts: BlogFrontMatter[] }) {
             <div className="text-lg leading-8 text-gray-600 dark:text-gray-400">
               <Heading />
               <TypedBios />
+              <SocialAccounts />
               <ShortDescription />
               <BlogLinks />
               <p className="my-8 flex">
