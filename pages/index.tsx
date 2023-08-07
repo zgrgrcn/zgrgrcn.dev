@@ -32,7 +32,7 @@ export default function Home({ posts }: { posts: BlogFrontMatter[] }) {
               <ShortDescription />
               <BlogLinks />
               <p className="my-8 flex">
-                <span className="mr-2">Happy reading</span>
+                <span className="mr-2">Enjoy your reading experience</span>
                 <Twemoji emoji="clinking-beer-mugs" />
               </p>
             </div>
