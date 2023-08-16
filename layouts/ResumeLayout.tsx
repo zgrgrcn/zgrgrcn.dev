@@ -20,7 +20,7 @@ export function ResumeLayout({ children }: ResumeLayoutProps) {
           </h1>
           <p className="text-lg leading-7 text-gray-500 dark:text-gray-400">{description}</p>
         </div>
-        <iframe src='/resume.pdf' className="w-full h-screen"></iframe>
+        <iframe title="resume" src="/resume.pdf" className="w-full h-screen"></iframe>
       </div>
     </>
   )
