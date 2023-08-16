@@ -1,5 +1,6 @@
 import 'css/tailwind.css'
 import 'css/twemoji.css'
+import '@react-pdf-viewer/core/lib/styles/index.css'
 
 import { ThemeProvider } from 'next-themes'
 import Head from 'next/head'

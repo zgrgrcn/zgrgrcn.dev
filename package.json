@@ -15,6 +15,7 @@
   "dependencies": {
     "@octokit/graphql": "^7.0.0",
     "@prisma/client": "^4.16.2",
+    "@react-pdf-viewer/core": "^3.12.0",
     "@tailwindcss/forms": "^0.5.3",
     "@tailwindcss/typography": "^0.5.9",
     "@vercel/analytics": "^1.0.1",
@@ -28,6 +29,7 @@
     "mdx-bundler": "^9.2.1",
     "next": "^13.4.9",
     "next-themes": "^0.2.1",
+    "pdfjs-dist": "^3.9.179",
     "postcss": "^8.4.25",
     "postcss-loader": "^7.3.3",
     "react": "18.2.0",
