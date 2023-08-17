@@ -7,7 +7,7 @@ import { siteMetadata } from '~/data/siteMetadata'
 import type { ResumeLayoutProps } from '~/types'
 
 export function ResumeLayout({ children }: ResumeLayoutProps) {
-  let description = 'My professional career, experience, and skills.'
+  let description = 'My experiences, education and skills.'
 
   return (
     <>
