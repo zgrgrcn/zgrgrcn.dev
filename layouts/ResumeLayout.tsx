@@ -1,6 +1,3 @@
-import '@react-pdf-viewer/core/lib/styles/index.css'
-
-import { Viewer, Worker } from '@react-pdf-viewer/core'
 import { PageSeo } from 'components/SEO'
 import { ScrollTopButton } from '~/components/ScrollTopButton'
 import { siteMetadata } from '~/data/siteMetadata'
@@ -23,15 +20,7 @@ export function ResumeLayout({ children }: ResumeLayoutProps) {
           </h1>
           <p className="text-lg leading-7 text-gray-500 dark:text-gray-400">{description}</p>
         </div>
-        {/* <div className="items-start space-y-2 xl:space-y-0">
-          <div className="prose prose-lg max-w-none pb-8 pt-8 dark:prose-dark">{children}</div>
-        </div> */}
-
-        <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.9.179/build/pdf.worker.js">
-          <div style={{ height: '900px' }}>
-            <Viewer fileUrl="/resume.pdf" />
-          </div>
-        </Worker>
+        <iframe title="resume" src="/resume.pdf" className="w-full h-screen"></iframe>
       </div>
     </>
   )
