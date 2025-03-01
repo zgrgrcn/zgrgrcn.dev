@@ -27,12 +27,12 @@ export function ProfileCardInfo() {
             Backend Developer @{' '}
             <a
               target="_blank"
-              href="https://www.linkedin.com/company/getir"
+              href="https://www.linkedin.com/company/trendyolgroup"
               rel="noreferrer"
               className="hover:underline"
-              style={{ color: '#5d3ebc' }}
+              style={{ color: '#FFA500' }}
             >
-              Getir
+              Trendyol
             </a>
           </p>
         </div>
