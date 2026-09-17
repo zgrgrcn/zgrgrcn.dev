@@ -8,13 +8,13 @@ export function BlogLinks() {
       <Link href="/blog" className="hover:underline">
         <Twemoji emoji="memo" />
         <span data-umami-event="home-link-blog" className="ml-1.5">
-          My writings
+          Technical Articles & Case Studies
         </span>
       </Link>
       <Link href="/projects" className="hover:underline">
         <Twemoji emoji="hammer-and-wrench" />
         <span data-umami-event="home-link-projects" className="ml-1.5">
-          What have I built?
+          Side Projects & Tooling
         </span>
       </Link>
       {/*<Link href="/about" className="hover:underline">*/}
@@ -26,13 +26,13 @@ export function BlogLinks() {
       <Link href="/resume" className="hover:underline">
         <Twemoji emoji="briefcase" />
         <span data-umami-event="home-link-resume" className="ml-1.5">
-          My Resume
+          Resume & Career Journey
         </span>
       </Link>
       <Link href={siteMetadata.analyticsURL} className="hover:underline">
         <Twemoji emoji="bar-chart" />
         <span data-umami-event="home-link-analytics" className="ml-1.5">
-          The website's traffic and engagement
+          Live Website Analytics (Umami)
         </span>
       </Link>
     </div>

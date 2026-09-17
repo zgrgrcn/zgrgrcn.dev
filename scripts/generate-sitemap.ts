@@ -2,7 +2,7 @@ import fs from 'fs'
 import { globby } from 'globby'
 import prettier from 'prettier'
 
-let SITE_URL = 'https://www.ozgurgurcan.dev'
+let SITE_URL = 'https://ozgurgurcan.com'
 
 ;(async () => {
   console.log('Generating sitemap...')
@@ -25,12 +25,13 @@ let SITE_URL = 'https://www.ozgurgurcan.dev'
               .replace('pages/', '/')
               .replace('data/blog', '/blog')
               .replace('public/', '/')
+              .replace('.tsx', '')
               .replace('.ts', '')
               .replace('.mdx', '')
               .replace('.md', '')
               .replace('/feed.xml', '')
             let route = path === '/index' ? '' : path
-            if (page === `pages/404.ts` || page === `pages/blog/[...slug].ts`) {
+            if (page === `pages/404.tsx` || page === `pages/blog/[...slug].tsx`) {
               return
             }
             return `<url><loc>${SITE_URL}${route}</loc></url>\n`

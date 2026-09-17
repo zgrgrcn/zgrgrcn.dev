@@ -4,7 +4,7 @@
 
 **Personal Engineering Hub, Production Architecture Case Studies & Technical Blog**
 
-[![Website](https://img.shields.io/badge/Website-zgrgrcn.dev-0ea5e9?style=flat-square&logo=google-chrome&logoColor=white)](https://zgrgrcn.dev)
+[![Website](https://img.shields.io/badge/Website-ozgurgurcan.com-0ea5e9?style=flat-square&logo=google-chrome&logoColor=white)](https://ozgurgurcan.com)
 [![Next.js](https://img.shields.io/badge/Next.js-13-black?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-38bdf8?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
@@ -19,7 +19,7 @@
 
 ## 📌 Overview
 
-**[zgrgrcn.dev](https://zgrgrcn.dev)** is the personal website, engineering portfolio, and technical writing hub of **Ozgur Gurcan** (Senior / Staff Backend Engineer). 
+**[ozgurgurcan.com](https://ozgurgurcan.com)** (also accessible via **[dev.ozgurgurcan.com](https://dev.ozgurgurcan.com)**) is the personal website, engineering portfolio, and technical writing hub of **Ozgur Gurcan** (Software Engineer | Backend & Distributed Systems). 
 
 It features production war stories, high-throughput distributed systems case studies, zero-downtime database migration playbooks, and modern AI engineering workflows (MCP & n8n). The site is architected for maximum performance, minimal resource footprint, and zero cloud vendor lock-in through self-hosted containerization.
 
@@ -49,21 +49,21 @@ It features production war stories, high-throughput distributed systems case stu
 
 The hub publishes in-depth architectural post-mortems and engineering deep dives based on real-world high-throughput platforms:
 
-1. **[Multi-Datacenter Active-Active at Scale (7M RPM)](https://zgrgrcn.dev/blog/multi-datacenter-active-active-at-scale)**
+1. **[Multi-Datacenter Active-Active at Scale (7M RPM)](https://ozgurgurcan.com/blog/multi-datacenter-active-active-at-scale)**
    - Architecting bidirectional data replication, conflict resolution (LWW, CRDTs), and failure domain isolation under extreme load.
-2. **[Zero-Downtime Database Migration: Couchbase to PostgreSQL](https://zgrgrcn.dev/blog/zero-downtime-database-migration-couchbase-to-postgresql)**
+2. **[Zero-Downtime Database Migration: Couchbase to PostgreSQL](https://ozgurgurcan.com/blog/zero-downtime-database-migration-couchbase-to-postgresql)**
    - Production dual-write patterns, asynchronous backfill reconcilers, and shadow-read verification under heavy transactional traffic.
-3. **[Taming the N+1 Query Problem at Scale](https://zgrgrcn.dev/blog/taming-the-n-plus-1-problem-at-scale)**
+3. **[Taming the N+1 Query Problem at Scale](https://ozgurgurcan.com/blog/taming-the-n-plus-1-problem-at-scale)**
    - Systematic query optimization, batch loading, and connection pool tuning in high-concurrency Spring Boot and Go microservices.
-4. **[Building an Autonomous AI Code Review Bot with MCP & n8n](https://zgrgrcn.dev/blog/building-an-autonomous-code-review-bot-with-mcp-and-n8n)**
+4. **[Building an Autonomous AI Code Review Bot with MCP & n8n](https://ozgurgurcan.com/blog/building-an-autonomous-code-review-bot-with-mcp-and-n8n)**
    - Implementing autonomous GitLab merge request reviews using Model Context Protocol (MCP) servers, team architectural standards (ADRs), and vector search.
-5. **[Resilience Patterns for Event-Driven Architectures](https://zgrgrcn.dev/blog/resilience-patterns-for-event-driven-architectures)**
+5. **[Resilience Patterns for Event-Driven Architectures](https://ozgurgurcan.com/blog/resilience-patterns-for-event-driven-architectures)**
    - Transactional outbox pattern, idempotent consumers, dead-letter queues, and Kafka circuit breakers.
-6. **[Java 25 and Spring Boot 4 Virtual Threads](https://zgrgrcn.dev/blog/java-25-and-spring-boot-4-virtual-threads)**
+6. **[Java 25 and Spring Boot 4 Virtual Threads](https://ozgurgurcan.com/blog/java-25-and-spring-boot-4-virtual-threads)**
    - Project Loom deep dive: eliminating thread-pinning, carrier thread exhaustion, and optimizing I/O intensive throughput.
-7. **[Dynamic Limit Allocation on 32TB Data with BigQuery](https://zgrgrcn.dev/blog/dynamic-limit-allocation-on-32tb-data-with-bigquery)**
+7. **[Dynamic Limit Allocation on 32TB Data with BigQuery](https://ozgurgurcan.com/blog/dynamic-limit-allocation-on-32tb-data-with-bigquery)**
    - Large-scale quota management, query partitioning, and cost-efficient analytics at terabyte scale.
-8. **[Ditching PaaS: Self-Hosting My Stack with Coolify](https://zgrgrcn.dev/blog/ditching-paas-self-hosting-my-stack-with-coolify)**
+8. **[Ditching PaaS: Self-Hosting My Stack with Coolify](https://ozgurgurcan.com/blog/ditching-paas-self-hosting-my-stack-with-coolify)**
    - Migration journey from proprietary cloud PaaS to a fully controlled, self-hosted Docker and Coolify setup.
 
 ---
@@ -160,7 +160,7 @@ docker run -d \
    - `PORT`: `3000`
 4. **Networking:** 
    - Expose port `3000`.
-   - Assign domain `https://zgrgrcn.dev`.
+   - Assign domains `https://dev.ozgurgurcan.com` and `https://ozgurgurcan.com`.
    - Set up Cloudflare SSL & proxying.
 5. **Deploy:** Hit **Deploy**. Coolify pulls the repo, executes the multi-stage build, and activates the container with zero downtime.
 
@@ -169,7 +169,7 @@ docker run -d \
 ## 👤 Author
 
 **Ozgur Gurcan**
-- Website: [zgrgrcn.dev](https://zgrgrcn.dev)
+- Website: [ozgurgurcan.com](https://ozgurgurcan.com)
 - GitHub: [@zgrgrcn](https://github.com/zgrgrcn)
 - LinkedIn: [in/ozgurgurcan](https://linkedin.com/in/ozgurgurcan)
 

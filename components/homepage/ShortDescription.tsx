@@ -1,14 +1,16 @@
 export function ShortDescription() {
   return (
-    <div className="mb-8 mt-4">
+    <div className="mb-8 mt-4 space-y-3">
       <p>
-        I work mostly on the backend side of things and have been involved in private projects that
-        aren't easily shown to others. That's why I decided to start this blog. It's a way to prove
-        and share what I know and have experienced.
+        I specialize in backend engineering, high-throughput microservices, and distributed systems.
+        Having worked on production systems handling millions of requests per minute, I created this
+        space to document practical architectural lessons, zero-downtime database migrations, and
+        performance tuning.
       </p>
       <p>
-        I also jot down notes for myself about programming and other things. I want to share these
-        notes because I believe that sharing helps me learn and grow.
+        Beyond backend infrastructure, I enjoy building side projects, experimenting with AI
+        workflows (MCP servers, agents, and modern tooling), and self-hosting. This blog is my
+        digital workbench for sharing engineering notes that solve hard, real-world problems.
       </p>
     </div>
   )

@@ -5,7 +5,9 @@ export function ProfileCardInfo() {
   return (
     <div className="hidden py-4 xl:block xl:px-6">
       <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Ozgur Gurcan</h3>
-      <h5 className="py-2 text-gray-700 dark:text-gray-400">Learner | Software Engineer</h5>
+      <h5 className="py-2 text-gray-700 dark:text-gray-400">
+        Software Engineer | Backend & Distributed Systems
+      </h5>
       <div className="mb-2 mt-4 space-y-4">
         <div className="flex items-center text-gray-700 dark:text-gray-200">
           <svg
@@ -24,16 +26,20 @@ export function ProfileCardInfo() {
           </svg>
 
           <p className="px-2">
-            Backend Developer @{' '}
-            <a
-              target="_blank"
-              href="https://www.linkedin.com/company/trendyolgroup"
-              rel="noreferrer"
-              className="hover:underline"
-              style={{ color: '#FFA500' }}
-            >
-              Trendyol
-            </a>
+            Software Engineer{' '}
+            <span className="text-gray-500 dark:text-gray-400">
+              (ex-
+              <a
+                target="_blank"
+                href="https://www.linkedin.com/company/trendyolgroup"
+                rel="noreferrer"
+                className="hover:underline"
+                style={{ color: '#FFA500' }}
+              >
+                Trendyol
+              </a>
+              )
+            </span>
           </p>
         </div>
         <div className="flex items-center text-gray-700 dark:text-gray-200">

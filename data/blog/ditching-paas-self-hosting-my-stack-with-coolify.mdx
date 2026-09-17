@@ -16,7 +16,7 @@ For years, platforms like Vercel, Netlify, and Railway have been the default rec
 
 It works great—until you start running against platform quirks, edge runtime restrictions, opaque pricing tiers, and vendor lock-in.
 
-As someone who spends his workdays engineering high-throughput backend infrastructure, running my own personal stack on a self-hosted platform felt like the natural, fun weekend move. I recently migrated my portfolio (`zgrgrcn.dev`) and companion services to **Coolify** on a lightweight Linux VPS.
+As someone who spends his workdays engineering high-throughput backend infrastructure, running my own personal stack on a self-hosted platform felt like the natural, fun weekend move. I recently migrated my portfolio (`ozgurgurcan.com`) and companion services to **Coolify** on a lightweight Linux VPS.
 
 Here is a breakdown of the setup, container optimizations, and how the developer experience compares to managed PaaS.
 
@@ -99,7 +99,7 @@ Managing custom domains with Coolify and Traefik is seamless:
 1. Point your domain's DNS **A record** directly to your VPS IP address.
 2. In Coolify's application dashboard, enter your domains:
    ```text
-   https://ozgurgurcan.dev, https://www.ozgurgurcan.dev
+   https://dev.ozgurgurcan.com, https://ozgurgurcan.com
    ```
 3. Traefik automatically issues Let's Encrypt certificates, provisions HTTPS, and redirects HTTP to HTTPS.
 

@@ -3,7 +3,7 @@ import { siteMetadata } from '~/data/siteMetadata'
 export default function SocialAccounts() {
   return (
     <div>
-      <p className="my-3">Get in touch with me via my social media accounts:</p>
+      <p className="my-3 text-sm font-medium text-gray-500 dark:text-gray-400">Connect with me:</p>
       <div className="flex space-x-4">
         <a
           href={siteMetadata.github}

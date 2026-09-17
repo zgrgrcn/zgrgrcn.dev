@@ -31,8 +31,8 @@ export default function Home({ posts }: { posts: BlogFrontMatter[] }) {
               <SocialAccounts />
               <ShortDescription />
               <BlogLinks />
-              <p className="my-8 flex">
-                <span className="mr-2">Enjoy your reading experience</span>
+              <p className="my-8 flex items-center">
+                <span className="mr-2">Happy reading & hacking</span>
                 <Twemoji emoji="clinking-beer-mugs" />
               </p>
             </div>

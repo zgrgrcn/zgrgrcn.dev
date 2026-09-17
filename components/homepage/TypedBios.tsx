@@ -20,23 +20,21 @@ export function TypedBios() {
   return (
     <div>
       <ul id="bios" className="hidden">
-        <li>I am Software Engineer</li>
-        <li>I love backend development.</li>
-        <li>I am A learner, builder, and freedom seeker.</li>
+        <li>I'm a Software Engineer focusing on Backend & Distributed Systems.</li>
+        <li>I build high-throughput, resilient microservices.</li>
+        <li>Primary tools: Java, Spring Boot, Go, and Kafka.</li>
+        <li>Exploring AI agents, MCP tooling, and TypeScript.</li>
         <li>
-          I Live in <b className="font-medium">Izmir, Turkiye.</b>.
+          Based in <b className="font-medium">Izmir, Turkiye.</b>
         </li>
-        <li>I work mostly with Node.js/Java.</li>
-        <li>
-          My first programming language I learned was <b className="font-medium">Visual Basic.</b>.
-        </li>
-        <li>I love rock music.</li>
+        <li>A builder, continuous learner, and freedom seeker.</li>
+        <li>I love rock music and playing guitar.</li>
         <li>
           I love playing chess <Twemoji emoji="chess-pawn" />.
         </li>
         <li>
-          I love playing video game <Twemoji emoji="video-game" />, Dota2 <Twemoji emoji="dota2" />{' '}
-          is my favorite one.
+          I love playing video games <Twemoji emoji="video-game" />, Dota 2{' '}
+          <Twemoji emoji="dota2" /> is my favorite.
         </li>
         <li>
           I'm Fulden's

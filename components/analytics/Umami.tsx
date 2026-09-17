@@ -5,8 +5,9 @@ export function UmamiScript() {
   return (
     <Script
       async
+      defer
       data-website-id={siteMetadata.analytics.umamiWebsiteId}
-      src="https://analytics.umami.is/script.js"
+      src={siteMetadata.analytics.umamiScriptUrl || 'https://stats.ozgurgurcan.com/script.js'}
     />
   )
 }

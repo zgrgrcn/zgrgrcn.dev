@@ -5,9 +5,9 @@ export let siteMetadata = {
   headerTitle: "Ozgur's blog",
   footerTitle: "Ozgur's blog",
   description:
-    "Ozgur's coding journey - work and life stories through the keyboard of an open-minded Software Engineer",
+    "Ozgur Gurcan's personal website & engineering blog — deep dives into backend systems, distributed architectures, and pragmatic tooling.",
   language: 'en-us',
-  siteUrl: 'https://www.ozgurgurcan.dev',
+  siteUrl: 'https://ozgurgurcan.com',
   siteRepo: 'https://github.com/zgrgrcn/zgrgrcn.dev',
   siteLogo: '/static/images/logo.jpeg',
   image: '/static/images/logo.jpeg',
@@ -19,11 +19,12 @@ export let siteMetadata = {
   youtube: 'https://www.youtube.com',
   linkedin: 'https://www.linkedin.com/in/zgrgrcn/',
   locale: 'en-US',
-  analyticsURL: 'https://analytics.umami.is/share/BKLaO8RNJPa5hOe4/ozgurgurcan.dev',
+  analyticsURL: 'https://stats.ozgurgurcan.com/share/e1iDJvwlxmbxnuRf',
   analytics: {
     plausibleDataDomain: '', // e.g. tailwind-nextjs-starter-blog.vercel.app
     simpleAnalytics: false, // true or false
-    umamiWebsiteId: 'e6711638-cb00-4c9d-a98d-1da8e2d3b54b', // e.g. 123e4567-e89b-12d3-a456-426614174000
+    umamiWebsiteId: '43a7ae95-5f80-4144-88ab-a956af9a40bf',
+    umamiScriptUrl: 'https://stats.ozgurgurcan.com/script.js',
     googleAnalyticsId: '', // e.g. UA-000000-2 or G-XXXXXXX
   },
   socialAccounts: {
