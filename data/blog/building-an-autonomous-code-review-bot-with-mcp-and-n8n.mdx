@@ -1,0 +1,96 @@
+---
+title: 'Building an Autonomous AI Code Review Bot with MCP, n8n, and Vector Search'
+date: '2026-02-10'
+tags: ['ai', 'mcp', 'n8n', 'automation', 'productivity']
+draft: false
+summary: 'How we automated contextual merge request reviews by combining Model Context Protocol (MCP), vector embeddings over our documentation, and Slack workflows.'
+images: ['/static/images/banner-ai-code-review-mcp.png']
+authors: ['default']
+---
+
+import Twemoji from './Twemoji.tsx'
+
+![thumbnail-image](/static/images/banner-ai-code-review-mcp.png)
+
+Standard automated linting tools and SonarQube are great at catching syntax violations and code smells, but they cannot evaluate **contextual engineering intent**:
+- *"Does this merge request align with our Architecture Decision Record (ADR) on idempotent consumers?"*
+- *"Did the author remember our team convention regarding transactional outbox retries?"*
+- *"Does the PR description actually fulfill the ACs specified in the attached Jira ticket?"*
+
+To solve this, I designed and built an **autonomous AI code review bot** powered by Model Context Protocol (MCP) servers, vector retrieval over team wikis, and n8n workflow orchestration. 
+
+Here is how the architecture works and what we learned deploying AI into our team's daily workflow.
+
+## The Architecture Overview
+
+The goal was to build a tool that feels like a knowledgeable senior engineer reviewing code before human reviewers jump in.
+
+```
+ GitLab MR Event (Webhook)
+         │
+         ▼
+   ┌───────────┐
+   │    n8n    │ ◄─── Jira API (Fetch Issue Specs & ACs)
+   │Orchestrator│
+   └─────┬─────┘
+         │
+         ▼
+  ┌─────────────┐       ┌────────────────────────┐
+  │ LLM Engine  │ ◄────►│ MCP Server (GitLab/Docs)│
+  └──────┬──────┘       └────────────────────────┘
+         │                          │
+         │                          ▼
+         │               [Vector DB / Embeddings]
+         ▼               (ADRs, Runbooks, Guidelines)
+ ┌───────────────┐
+ │ GitLab MR &   │
+ │ Slack Alert   │
+ └───────────────┘
+```
+
+The pipeline triggers automatically on any new Merge Request:
+1. **Context Ingestion:** n8n catches the webhook, parses the Jira ticket key from the branch name, and fetches the issue summary and acceptance criteria.
+2. **Knowledge Retrieval via MCP:** An internal Model Context Protocol (MCP) server exposes endpoints for the LLM to search our internal vector store (ADRs, team coding standards, testing guides) and query relevant parts of the repository.
+3. **Reasoning & Analysis:** The model compares the git diff against the Jira requirements and our architectural guidelines.
+4. **Targeted Review Output:** The bot posts inline, contextual review comments on GitLab, flags any missing test cases, and pings the team's Slack channel if critical architectural violations are detected.
+
+## Why Model Context Protocol (MCP)?
+
+When building LLM automations, hardcoding API integrations inside prompts quickly falls apart. The **Model Context Protocol (MCP)** provided a clean, standardized abstraction:
+
+Instead of dumping an entire repository into the model's context window, our MCP server exposes composable tools:
+- `search_team_guidelines(query)`: Vector similarity search over Markdown docs.
+- `get_adr_decision(topic)`: Returns relevant Architectural Decision Records.
+- `inspect_related_tests(changed_files)`: Traces whether corresponding test files were modified alongside production code.
+
+The LLM dynamically decides which tools to invoke during its review loop. For example, if it notices a Kafka listener without a dead-letter strategy, it calls `get_adr_decision("kafka-dlq-strategy")` before drafting its review comment.
+
+## Building the n8n Orchestration Layer
+
+We chose [n8n](https://n8n.io/) for orchestrating the event pipeline because it provides visual traceability, retries, and rapid webhook prototyping without having to deploy and maintain custom microservice infrastructure.
+
+```json
+// Sample Payload Sent to LLM Review Prompt
+{
+  "project": "coupon-service",
+  "mr_id": 4821,
+  "jira_key": "COUPON-1892",
+  "jira_description": "Add dynamic rate limiting to public redemption endpoints",
+  "diff_summary": "12 files modified, +312, -45",
+  "matched_guidelines": [
+    "ADR-014: Rate limiting must use Redis token-bucket cluster",
+    "Rule-008: All external API mutations require idempotent request headers"
+  ]
+}
+```
+
+## Results & Impact on Review Velocity
+
+Deploying the bot had an immediate, measurable effect on our engineering workflow:
+- **Zero Trivia in Human Reviews:** Reviewers no longer need to check whether Jira specs were followed, if BDD scenarios were updated, or if ADR conventions were respected.
+- **Faster Turnaround:** Authors receive high-confidence, actionable feedback within 60 seconds of pushing their MR, allowing them to fix obvious gaps before pinging colleagues.
+- **Interactive Slack Q&A:** We hooked the same MCP engine into Slack so engineers can ask: *"What is our retry policy for outbox publishing?"* and get instantaneous, documented answers.
+
+## Takeaway
+
+AI tooling in engineering teams succeeds when it has **access to true local context**. A generic LLM will nitpick formatting, but an LLM grounded with your ADRs, Jira tickets, and architectural standards through MCP acts like an actual peer on the team. <Twemoji emoji="robot" />

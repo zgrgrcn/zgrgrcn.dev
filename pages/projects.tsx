@@ -6,7 +6,7 @@ import { siteMetadata } from '~/data/siteMetadata'
 export default function Projects() {
   let workProjects = projectsData.filter(({ type }) => type === 'work')
   let sideProjects = projectsData.filter(({ type }) => type === 'self')
-  let description = 'My open-source side projects.'
+  let description = 'Engineering initiatives, work highlights, and side projects.'
 
   function description_div() {
     return (
@@ -23,7 +23,7 @@ export default function Projects() {
     return (
       <div className="container py-12">
         <h3 className="mb-4 text-3xl font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100">
-          Work
+          Work & Initiatives
         </h3>
         <div className="-m-4 flex flex-wrap">
           {workProjects.map((project) => (
@@ -37,9 +37,9 @@ export default function Projects() {
   function sideProjects_div() {
     return (
       <div className="container py-12">
-        {/*<h3 className="mb-4 text-3xl font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100">*/}
-        {/*  Side projects*/}
-        {/*</h3>*/}
+        <h3 className="mb-4 text-3xl font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100">
+          Side Projects
+        </h3>
         <div className="-m-4 flex flex-wrap">
           {sideProjects.map((project) => (
             <ProjectCard key={project.title} project={project} />
@@ -54,7 +54,7 @@ export default function Projects() {
       <PageSeo title={`Projects - ${siteMetadata.author}`} description={description} />
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
         {description_div()}
-        {/*{workProjects_div()}*/}
+        {workProjects_div()}
         {sideProjects_div()}
       </div>
     </>

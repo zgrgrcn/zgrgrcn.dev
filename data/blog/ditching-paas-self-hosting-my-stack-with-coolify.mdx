@@ -1,0 +1,117 @@
+---
+title: 'Ditching PaaS: Self-Hosting My Personal Stack on Coolify with Docker and Traefik'
+date: '2026-09-17'
+tags: ['coolify', 'self-hosting', 'docker', 'devops', 'nextjs']
+draft: false
+summary: 'Why and how I migrated my personal projects to a self-hosted Coolify instance, setting up multi-stage Docker builds, automated SSL via Traefik, and Git push-to-deploy.'
+images: ['/static/images/banner-coolify-self-hosting.png']
+authors: ['default']
+---
+
+import Twemoji from './Twemoji.tsx'
+
+![thumbnail-image](/static/images/banner-coolify-self-hosting.png)
+
+For years, platforms like Vercel, Netlify, and Railway have been the default recommendation for spinning up side projects and personal portfolios. You push code, git hooks trigger, and your site is live with automated SSL.
+
+It works great—until you start running against platform quirks, edge runtime restrictions, opaque pricing tiers, and vendor lock-in.
+
+As someone who spends his workdays engineering high-throughput backend infrastructure, running my own personal stack on a self-hosted platform felt like the natural, fun weekend move. I recently migrated my portfolio (`zgrgrcn.dev`) and companion services to **Coolify** on a lightweight Linux VPS.
+
+Here is a breakdown of the setup, container optimizations, and how the developer experience compares to managed PaaS.
+
+## What is Coolify?
+
+If you haven't crossed paths with it yet, [Coolify](https://coolify.io/) is an open-source, self-hosted alternative to Vercel and Heroku. It runs on any standard Linux server with Docker and comes with:
+- **Automatic Traefik Reverse Proxy:** Generates and auto-renews Let's Encrypt SSL certificates for your domains out of the box.
+- **Git Push-to-Deploy:** Integrates with GitHub via webhooks or GitHub App to auto-deploy on commit.
+- **Database & Service Orchestration:** One-click provisioning for PostgreSQL, Redis, MongoDB, or arbitrary Docker Compose files.
+- **Zero Lock-In:** It’s all pure Docker containers under the hood.
+
+Setting it up on a fresh Ubuntu VPS took literally one command:
+
+```bash
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+```
+
+Within two minutes, the dashboard was accessible on port `8000`.
+
+## Containerizing Next.js for Production
+
+Next.js projects often suffer from bloated Docker images if you aren't careful with `node_modules` caching. A naive image can easily tip over 1 GB in size.
+
+To keep deployments fast and memory usage minimal on a modest VPS, I configured Next.js in `standalone` output mode:
+
+```javascript
+// next.config.js
+module.exports = {
+  output: 'standalone',
+  reactStrictMode: true,
+  // ...
+}
+```
+
+Next.js standalone mode traces dependencies and bundles only the required production files into `.next/standalone`, discarding gigabytes of unnecessary dev dependencies.
+
+Next, I wrote a multi-stage `Dockerfile`:
+
+```dockerfile
+FROM node:20-slim AS base
+WORKDIR /app
+ENV NODE_ENV=production
+
+# 1. Dependency installation stage
+FROM base AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY prisma ./prisma/
+RUN npm ci
+
+# 2. Build stage
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+RUN npm run build
+
+# 3. Lean runtime stage
+FROM base AS runner
+WORKDIR /app
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+USER node
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+The resulting production image comes in at **~120 MB**, starts in under 2 seconds, and idles at under 45 MB of RAM.
+
+## Domain & SSL Configuration
+
+Managing custom domains with Coolify and Traefik is seamless:
+1. Point your domain's DNS **A record** directly to your VPS IP address.
+2. In Coolify's application dashboard, enter your domains:
+   ```text
+   https://ozgurgurcan.dev, https://www.ozgurgurcan.dev
+   ```
+3. Traefik automatically issues Let's Encrypt certificates, provisions HTTPS, and redirects HTTP to HTTPS.
+
+## Automated CI/CD: Push to Deploy
+
+To get back the beloved push-to-deploy workflow from Vercel:
+1. Connect Coolify to GitHub via the **GitHub App** integration.
+2. Select the repository and set the production branch to `main`.
+3. Enable **Auto Deploy**.
+
+Whenever I push a commit to `main`, Coolify receives the webhook, builds the multi-stage Docker image, performs health checks, and hot-swaps the container without downtime.
+
+## Final Thoughts
+
+Self-hosting with modern tools like Coolify no longer means spending days debugging Nginx configs or fighting certbot renewal scripts. You get all the polish of a commercial PaaS, but you own the hardware, pay predictable VPS pricing, and keep complete control over your deployment runtime. <Twemoji emoji="clinking-beer-mugs" />

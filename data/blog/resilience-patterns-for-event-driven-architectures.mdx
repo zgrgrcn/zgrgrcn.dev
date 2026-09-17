@@ -1,0 +1,124 @@
+---
+title: 'Resilience Patterns for High-Throughput Event-Driven Systems'
+date: '2023-10-12'
+tags: ['kafka', 'spring-boot', 'resilience', 'event-driven', 'distributed-systems']
+draft: false
+summary: 'Lessons learned from peak campaign traffic: implementing transactional outbox, idempotent consumers, circuit breakers, and bulkhead isolation in Spring Boot.'
+images: ['/static/images/banner-resilience-kafka.png']
+authors: ['default']
+---
+
+import Twemoji from './Twemoji.tsx'
+
+![thumbnail-image](/static/images/banner-resilience-kafka.png)
+
+When building distributed microservices, things will fail: networks partition, downstream databases throttle, and third-party gateways timeout. When your event-driven systems handle millions of events per hour, naive retry loops and unbuffered HTTP calls will quickly cause cascading outages across your entire cluster.
+
+Over the past few years building event-driven systems with Spring Boot and Apache Kafka, we established a battle-tested set of resilience patterns that protect our core transaction paths during massive traffic spikes.
+
+Here is a breakdown of the four essential resilience patterns every backend engineer should implement.
+
+## 1. The Transactional Outbox Pattern
+
+A classic distributed systems trap is trying to update a database and publish an event to Kafka within the same application service method:
+
+```java
+// Anti-Pattern: Two-Phase Commit Trap
+@Transactional
+public void processOrder(Order order) {
+    orderRepository.save(order);
+    kafkaTemplate.send("orders-topic", order.getId(), order); // If Kafka fails, DB already committed!
+}
+```
+
+If Kafka is temporarily unreachable, your database transaction commits, but the event is lost forever. If you reverse the order, the event might be published while the database write fails on a constraint violation.
+
+The **Transactional Outbox Pattern** solves this without requiring slow distributed transactions (2PC):
+1. Write the domain mutation and the event record into the **same relational database transaction**.
+2. A separate relay process (either a Debezium CDC connector or an asynchronous polling worker) reads the outbox table and streams the messages to Kafka with guaranteed delivery.
+
+```sql
+CREATE TABLE outbox_events (
+    id UUID PRIMARY KEY,
+    aggregate_type VARCHAR(64) NOT NULL,
+    aggregate_id VARCHAR(64) NOT NULL,
+    payload JSONB NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+## 2. Idempotent Consumer Processing
+
+In Kafka, network retransmissions and consumer rebalances mean you must assume **at-least-once delivery**. A consumer may receive the exact same message twice.
+
+If an event triggers a credit grant or discount coupon redemption, processing it twice causes immediate business damage.
+
+We implement consumer idempotency via a Redis or database uniqueness check with an atomic state guard:
+
+```java
+@KafkaListener(topics = "coupon-allocation-events", groupId = "coupon-service-group")
+public void handleCouponAllocation(ConsumerRecord<String, CouponEvent> record, Acknowledgment ack) {
+    String eventId = record.value().getEventId();
+    
+    // Atomic check-and-set using Redis SETNX with TTL
+    Boolean isNew = redisTemplate.opsForValue()
+        .setIfAbsent("processed_event:" + eventId, "1", Duration.ofHours(24));
+
+    if (Boolean.FALSE.equals(isNew)) {
+        log.warn("Duplicate event detected, skipping execution: {}", eventId);
+        ack.acknowledge();
+        return;
+    }
+
+    try {
+        couponService.allocate(record.value());
+        ack.acknowledge();
+    } catch (Exception ex) {
+        // Clear lock on recoverable failures to allow retry
+        redisTemplate.delete("processed_event:" + eventId);
+        throw ex;
+    }
+}
+```
+
+## 3. Bulkhead Isolation with Resilience4j
+
+When an external dependency slows down from 20 ms to 2000 ms, incoming requests quickly occupy all available Tomcat worker threads. Before long, unrelated endpoints in your application fail because all threads are blocked waiting for one slow external service.
+
+A **Bulkhead** limits the number of concurrent executions allocated to a specific downstream call:
+
+```yaml
+resilience4j.bulkhead:
+  instances:
+    crmServiceBulkhead:
+      maxConcurrentCalls: 25
+      maxWaitDuration: 20ms
+```
+
+If the CRM service degrades, only 25 threads can ever be occupied by it. Any excess callers fail fast with a `BulkheadFullException` or fallback logic, keeping 90% of your service threads healthy to serve core checkout traffic.
+
+## 4. Multi-Tiered Caching: Caffeine + Redis
+
+During campaign surges, querying a central cache (like Redis) for hot keys millions of times per minute can saturate the cache network interface card (NIC).
+
+To protect Redis, we deploy a **two-tier cache architecture**:
+1. **L1 (Local In-Memory):** Powered by `Caffeine` inside the JVM with a short TTL (e.g. 5–30 seconds). Local reads hit in **sub-microsecond** time without touching the network.
+2. **L2 (Distributed Shared):** Redis cluster with longer TTLs (e.g. 10–60 minutes) to keep nodes synchronized.
+
+```java
+@Cacheable(cacheNames = "hotCampaignRules", cacheManager = "caffeineRedisCompositeManager")
+public CampaignRule getCampaignRule(String ruleId) {
+    return crmClient.fetchRule(ruleId);
+}
+```
+
+## Summary
+
+Resilience in distributed systems is not about preventing errors; it is about **containing blast radiuses**:
+- Outbox ensures no data is dropped between persistence and messaging.
+- Idempotency ensures duplicate delivery never corrupts business state.
+- Bulkheads prevent one slow dependency from starving your JVM.
+- Local L1 caching prevents distributed cache saturation during mega traffic spikes.
+
+Building with these fundamentals in mind lets you sleep peacefully during the biggest campaign days of the year. <Twemoji emoji="clinking-beer-mugs" />

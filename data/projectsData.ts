@@ -1,115 +1,69 @@
 import type { Project } from '~/types'
 
 export let projectsData: Project[] = [
-  //   {
-  //     type: 'work',
-  //     title: 'Bizitravel',
-  //     description: `Bizitravel is a new generation corporate travel management platform developed in cooperation with Amadeus in response to the ever-increasing travel needs of the corporations.
-  //
-  // Throughout the development process, a number of needs analyzes have been carried out with leading companies and stakeholders in the travel industry which resulted an innovative and perfectionist product that meets highly sophisticated international standards.
-  //
-  // Bizitravel's technology have been fully supported by Tübitak-TEYDEB program during the development.
-  //
-  // `,
-  //     imgSrc: '/static/images/bizitravel.png',
-  //     url: 'https://www.bizitravel.com/en/index.html',
-  //     builtWith: [''],
-  //   },
-  // {
-  //   type: 'work',
-  //   title: 'Pilot - Shopify Hydrogen theme',
-  //   description:
-  //     'The first Hydrogen-driven theme for Shopify. Pilot is a Shopify theme that allows you to build a lightning-fast storefront with all the benefits of Hydrogen.',
-  //   imgSrc: '/static/images/weaverse-pilot.jpg',
-  //   repo: 'weaverse/pilot',
-  //   url: 'https://pilot.weaverse.io/',
-  //   builtWith: ['Hydrogen', 'Remix', 'Tailwind', 'Headless UI'],
-  // },
-  // {
-  //   type: 'work',
-  //   title: 'Minimog - Shopify theme',
-  //   description: `The Next Generation of highest-converting and extensible Shopify theme (Weekly bestseller & Top trending in Themeforest eCommerce category).`,
-  //   imgSrc: '/static/images/minimog.jpg',
-  //   url: 'https://themeforest.net/item/minimog-the-high-converting-shopify-theme/33380968?ref=ozgurgurcan.dev',
-  //   builtWith: ['Theme-kit', 'Liquid', 'Webpack', 'Tailwind'],
-  // },
-  // {
-  //   type: 'work',
-  //   title: 'Fox Kit - Shopify app',
-  //   description: `The upsells and boost conversion tools that is built to support Minimog theme.`,
-  //   imgSrc: '/static/images/foxkit.jpg',
-  //   url: 'https://apps.shopify.com/foxkit?ref=ozgurgurcan.dev',
-  //   builtWith: ['Koa.js', 'JWT', 'MongoDB', 'Polaris'],
-  // },
+  {
+    type: 'work',
+    title: 'AI Code Review Bot',
+    description:
+      'Autonomous merge request reviewer powered by Model Context Protocol (MCP) servers, vector storage over internal architecture standards, and n8n workflows. Automatically reads MR diffs and Jira specs to post contextual feedback and answer system questions in Slack.',
+    imgSrc: '/static/images/rocket.jpg',
+    url: '/blog/building-an-autonomous-code-review-bot-with-mcp-and-n8n',
+    builtWith: ['MCP', 'Python', 'n8n', 'Vector DB', 'Slack API', 'GitLab API'],
+  },
+  {
+    type: 'work',
+    title: 'High-Scale Load-Test Data Generator',
+    description:
+      'High-concurrency data generation pipeline replacing 30+ manual HTTP requests with parallel batch calls. Capable of spinning up tens of millions of coupon entities in under 5 minutes to stress-test active-active data layers and Chaos Engineering scenarios before campaign peaks.',
+    imgSrc: '/static/images/performance.jpg',
+    url: '/blog/taming-the-n-plus-1-problem-at-scale',
+    builtWith: ['Java', 'Spring Boot', 'Kafka', 'PostgreSQL', 'Docker'],
+  },
+  {
+    type: 'work',
+    title: 'Automated Architecture & Wiki Sync',
+    description:
+      'Continuous documentation pipeline using n8n and GitLab webhooks that diffs merged codebase changes against team architectural standards (ADRs) and synchronizes technical documentation automatically, eliminating documentation debt.',
+    imgSrc: '/static/images/server.jpg',
+    url: '/blog/building-an-autonomous-code-review-bot-with-mcp-and-n8n',
+    builtWith: ['n8n', 'Node.js', 'GitLab CI', 'Markdown', 'Webhooks'],
+  },
+  {
+    type: 'work',
+    title: 'Self-Service Dynamic Config Pipeline',
+    description:
+      'GitLab CI validation and automated deployment workflow allowing non-developer stakeholder teams to deploy production campaign rules safely with automated schema validation and sanity assertions, slashing release turnaround from 30 minutes to under 30 seconds.',
+    imgSrc: '/static/images/lock.jpg',
+    url: '/blog/resilience-patterns-for-event-driven-architectures',
+    builtWith: ['GitLab CI', 'JSON Schema', 'Bash', 'Docker'],
+  },
   {
     type: 'self',
-    title: 'Personal website',
+    title: 'JSONShare',
+    description:
+      'A modern, high-performance online JSON studio with an interactive tree inspector, syntax error auto-fixer, recursive alphabetical key sorting, VS Code themes, schema diff comparison, and instant shareable URLs.',
+    imgSrc: '/static/images/jsonshare.png',
+    repo: 'jsonshare.dev',
+    url: 'https://github.com/zgrgrcn/jsonshare.dev',
+    builtWith: ['Next.js 16', 'React 19', 'TypeScript', 'PostgreSQL', 'Tailwind CSS', 'Sentry'],
+  },
+  {
+    type: 'self',
+    title: 'Personal Portfolio & Engineering Hub',
+    description:
+      'Modern static/serverless engineering hub and tech log, self-hosted on a dedicated VPS using Coolify, Traefik automated TLS, multi-stage standalone Docker builds, and automated GitHub CI/CD.',
     imgSrc: '/static/images/ozgur-blog.png',
     repo: 'zgrgrcn.dev',
+    url: 'https://github.com/zgrgrcn/zgrgrcn.dev',
     builtWith: [
       'Next.js',
-      'Tailwind',
-      'Typescript',
-      'Prisma',
-      'Umami',
-      'MongoDB',
-      'Google Domains',
+      'TypeScript',
+      'Tailwind CSS',
+      'Drizzle / Prisma',
+      'PostgreSQL',
+      'Docker',
+      'Coolify',
+      'Cloudflare',
     ],
   },
-  // {
-  //   type: 'self',
-  //   title: 'Shopify theme starter',
-  //   imgSrc: '/static/images/shopify-theme-store.png',
-  //   repo: 'shopify-theme-starter',
-  //   builtWith: ['Shopify', 'Liquid', 'Webpack', 'Tailwind', 'Theme-kit'],
-  // },
-  // {
-  //   type: 'self',
-  //   title: 'Exercism solutions',
-  //   imgSrc: '/static/images/exercism.png',
-  //   repo: 'exercism-solutions',
-  //   builtWith: ['Javascript', 'Bash', 'Exercism'],
-  // },
-  // {
-  //   type: 'self',
-  //   title: 'Animate loading bar',
-  //   imgSrc: '/static/images/animate-loading-bar.jpg',
-  //   repo: 'animate-loading-bar',
-  //   builtWith: ['Javascript', 'CSS'],
-  // },
-  // {
-  //   type: 'self',
-  //   title: 'Shopify KoaJS React boilerplate',
-  //   imgSrc: '/static/images/shopify-app-store.png',
-  //   repo: 'shopify-koajs-react-boilerplate',
-  //   builtWith: ['Koa.js', 'JWT', 'MongoDB', 'Polaris'],
-  // },
-  // {
-  //   type: 'self',
-  //   title: 'Travel Egypt Picture Puzzle',
-  //   imgSrc: '/static/images/travel-egypt.jpg',
-  //   repo: 'Travel_Egypt',
-  //   builtWith: ['Python', 'Pygame'],
-  // },
-  // {
-  //   type: 'self',
-  //   title: 'Infinite Loading Gallery',
-  //   imgSrc: '/static/images/infinite-gallery.jpg',
-  //   repo: 'infinite-gallery',
-  //   builtWith: ['React', 'Semantic UI', 'Picsum API'],
-  // },
-  // {
-  //   type: 'self',
-  //   title: 'Store Manager',
-  //   imgSrc: '/static/images/java-store-manager.jpg',
-  //   repo: 'StoreManager',
-  //   builtWith: ['Java', 'Java Swing', 'JDBC', 'SQL Server'],
-  // },
-  // {
-  //   type: 'self',
-  //   title: 'Tiny retry',
-  //   imgSrc: '/static/images/tiny-retry.png',
-  //   repo: 'tiny-retry',
-  //   builtWith: ['Javascript', 'Node'],
-  // },
 ]

@@ -1,0 +1,411 @@
+---
+title: 'Multi-Datacenter Active-Active Architecture: Running 7M RPM on the Checkout Path'
+date: '2025-09-18'
+tags: ['distributed-systems', 'multi-datacenter', 'active-active', 'kafka', 'couchbase', 'chaos-engineering']
+draft: false
+summary: 'Architectural breakdown of running checkout services active-active across two datacenters at 7M RPM: XDCR conflict resolution, Kafka mirroring, progressive zone shutdowns, and holding p99 at 63ms under chaos testing.'
+images: ['/static/images/banner-multi-dc-active-active.png']
+authors: ['default']
+---
+
+import Twemoji from './Twemoji.tsx'
+
+![thumbnail-image](/static/images/banner-multi-dc-active-active.png)
+
+When your microservices sit squarely in the checkout critical path of a high-volume e-commerce platform, downtime is not measured in minutes of inconvenience—it is measured in millions of dollars of dropped orders per second. 
+
+In our domain at Trendyol, 38 microservices collaborate to validate, apply, and redeem promotional incentives and coupons. At steady state, these services absorb roughly **4 Million Requests Per Minute (RPM)**. During mega campaign events (such as November Black Friday and Super Brand Days), traffic surges beyond **7 Million RPM**, handling upwards of **800,000 coupon redemptions per day**.
+
+For years, the industry standard was active-passive disaster recovery: one primary datacenter serving 100% of live production traffic, with a warm standby datacenter replicating data asynchronously in the background. But when you are running at 7M RPM, active-passive is an operational liability:
+1. **Standby Hardware Waste:** Massive compute clusters sit virtually idle, burning budget while rarely being validated under real production load.
+2. **Cold Failover Panic:** If the primary DC goes down during peak campaign traffic, steering millions of concurrent users to a cold datacenter causes instantaneous connection pool stampedes, cold caches, and cascading failover timeouts.
+3. **Recovery Time Objective (RTO):** A 5-to-15 minute failover window under peak traffic equates to hundreds of thousands of failed checkouts and catastrophic customer friction.
+
+To eliminate single points of failure, we re-architected our entire checkout path into a **true Active-Active Multi-Datacenter architecture** spanning two independent physical datacenters separated by 400+ kilometers. 
+
+Here is the deep technical blueprint of how we solved bi-directional data replication, write-conflict resolution, Kafka streaming topologies, progressive traffic drains, and held our read latency p99 at 63ms—even under simulated fiber cuts.
+
+---
+
+## High-Level Topology: Two Datacenters, Zero Master
+
+Our setup spans two geographically separated datacenters (which we designate as **DC-A** and **DC-B**). Each datacenter runs identical, fully self-sufficient Kubernetes clusters, local Couchbase document clusters, local Apache Kafka message brokers, Elasticsearch instances, and PostgreSQL read/write nodes.
+
+```
+                         [ Global Anycast / GeoDNS ]
+                                     │
+                 ┌───────────────────┴───────────────────┐
+                 │ 50% Ingress                           │ 50% Ingress
+                 ▼                                       ▼
+       ┌───────────────────┐                   ┌───────────────────┐
+       │   Datacenter A    │                   │   Datacenter B    │
+       │                   │                   │                   │
+       │  [Edge / Ingress] │                   │  [Edge / Ingress] │
+       │         │         │                   │         │         │
+       │  [38 Checkout App]│                   │  [38 Checkout App]│
+       │    Pods (K8s)     │                   │    Pods (K8s)     │
+       │    │         │    │                   │    │         │    │
+       │    ▼         ▼    │                   │    ▼         ▼    │
+       │ [Couchbase] [Kafka]                   │ [Couchbase] [Kafka]
+       │  Cluster A  Cluster                   │  Cluster B  Cluster
+       └────────┬───────┬──┘                   └────────┬───────┬──┘
+                │       │                               │       │
+                │       └══════ Bi-Directional MM2 ═════╝       │
+                │               (Async Mirroring)               │
+                │                                               │
+                └══════════ Bi-Directional XDCR ════════════════╝
+                           (Sub-10ms Dark Fiber)
+```
+
+The datacenters are connected by dual dedicated 40 Gbps dark-fiber links. The inter-datacenter Round-Trip Time (RTT) consistently measures **2.8 milliseconds** under un-congested conditions. 
+
+However, rule number one of distributed systems engineering is: **never design an architecture that relies on low inter-datacenter latency for synchronous request execution.** If an application pod in DC-A must make a synchronous read or write to DC-B to complete a user request, you do not have an active-active system; you have a distributed monolith that will collapse the moment a backhoe digs through a fiber conduit.
+
+Every incoming user request is served **entirely by local compute, local caches, and local datastores within that datacenter**. Data synchronization happens asynchronously across datacenters.
+
+---
+
+## 1. Couchbase Bi-Directional XDCR & Conflict Resolution
+
+Our primary persistence engine for real-time coupon evaluation is Couchbase due to its memory-first architecture, sub-millisecond document lookups, and built-in Cross Data Center Replication (XDCR).
+
+Both DC-A and DC-B run dedicated Couchbase clusters replicating to each other using bi-directional XDCR. Writes occurring in DC-A replicate to DC-B in under 10ms, and vice-versa.
+
+### The Conflict Problem: Last-Write-Wins vs Vector Clocks
+
+When two datacenters accept mutations on the same entity concurrently, write conflicts are inevitable. Couchbase XDCR supports two out-of-the-box conflict resolution mechanisms:
+1. **Sequence Number (RevID):** The mutation with the higher revision ID wins.
+2. **Timestamp-based (Last-Write-Wins / LWW):** The mutation with the most recent wall-clock timestamp wins.
+
+Using naive Last-Write-Wins in an active-active setup is hazardous. Even with Network Time Protocol (NTP) daemons running across bare-metal hosts, clock drift between clusters routinely reaches 5ms to 25ms. In high-concurrency bursts, a mutation generated in DC-A could overwrite a subsequent mutation in DC-B simply because DC-A's physical clock was 12ms ahead.
+
+To solve this, we combined two architectural strategies: **Session Affinity Routing** and **Document Domain Partitioning**.
+
+#### A. Session Affinity at the Edge
+
+While both datacenters are active, we route user sessions deterministically using a consistent hash of the `customer_id` at the Edge/NGINX Ingress layer. 
+- Customer 12345 always routes to DC-A.
+- Customer 67890 always routes to DC-B.
+
+If an entire datacenter fails or undergoes maintenance, traffic is rehashed to the survivor datacenter. But during normal operations, consecutive mutations for a specific customer always execute inside the same datacenter, reducing concurrent cross-datacenter write races on individual customer coupon documents by **99.98%**.
+
+#### B. Append-Only Event Stream Documents (CRDT Pattern)
+
+For global campaign quotas (e.g., *"Only the first 10,000 customers receive 20% off"*), session affinity does not help because thousands of users across both datacenters attempt to decrement the same global quota counter simultaneously.
+
+If DC-A and DC-B both mutate a single shared document `campaign::101` with local counter updates:
+
+```
+DC-A: Quota 5000 -> 4999 (Rev 14)
+DC-B: Quota 5000 -> 4999 (Rev 14)
+Result: One mutation silently overwrites the other; 2 coupons redeemed, quota decremented once!
+```
+
+To prevent this split-brain quota corruption, we split shared state into **immutable append-only delta documents** combined with distributed CAS (Compare-And-Swap):
+
+```java
+public class QuotaReservationService {
+
+    private final ReactiveCollection couponCollection;
+
+    public Mono<Boolean> reserveQuota(String campaignId, String reservationId, int amount) {
+        // Document key is partitioned by Datacenter and UUID to prevent key collision
+        String deltaKey = String.format("quota_delta::%s::%s::%s", 
+                getCurrentDataCenter(), campaignId, reservationId);
+        
+        QuotaDelta delta = new QuotaDelta(campaignId, amount, Instant.now());
+        
+        return couponCollection.insert(deltaKey, delta)
+            .map(result -> true)
+            .onErrorResume(DocumentExistsException.class, e -> Mono.just(false));
+    }
+}
+```
+
+A background aggregation worker running in each datacenter periodically reads local delta streams, computes local consumption, and synchronizes aggregate quota allocations across DCs. This ensures that even if XDCR lags during a network glitch, neither datacenter ever writes to the exact same document key.
+
+---
+
+## 2. Kafka Streaming: Independent Clusters vs MirrorMaker 2
+
+A common architectural debate is whether to run a single "stretched" Kafka cluster across two datacenters or run two completely independent Kafka clusters connected by mirroring tools.
+
+```
+Option 1: Stretched Cluster (Anti-Pattern for Active-Active)
+┌───────────────────────────────┐
+│ Kafka Broker 1  Broker 2     │ (DC-A)
+└───────────────┬───────────────┘
+                │ High Latency Dark Fiber Hop (Inter-DC)
+                │ Every produce with acks=all stalls!
+┌───────────────┴───────────────┐
+│ Kafka Broker 3  Broker 4     │ (DC-B)
+└───────────────────────────────┘
+
+Option 2: Independent Dual Clusters with MM2 (Our Battle-Tested Pattern)
+┌───────────────────────────────┐           ┌───────────────────────────────┐
+│ DC-A Local Kafka Cluster      │           │ DC-B Local Kafka Cluster      │
+│  - Producer: acks=all         │           │  - Producer: acks=all         │
+│  - Consumer: local partition  │           │  - Consumer: local partition  │
+└───────────────┬───────────────┘           └───────────────┬───────────────┘
+                │                                           │
+                └───► [ MirrorMaker 2 Replication ] ◄───────┘
+```
+
+We tried running stretched Kafka clusters in our staging environment during initial architecture spikes. The results were disastrous:
+- Producing messages with `acks=all` required cross-datacenter synchronous replication to in-sync replicas (ISR) on every single write, inflating publish latency from **1.2ms to over 16ms**.
+- When inter-datacenter fiber packets dropped, broker heartbeats timed out, triggering non-stop Zookeeper/KRaft leader elections that froze partition consumption across the entire company.
+
+### The Independent Cluster Model
+
+We run completely decoupled Apache Kafka clusters in DC-A and DC-B. 
+- Application pods in DC-A produce exclusively to `kafka-cluster-a.local` with `acks=all` (which only waits for replicas inside DC-A's local availability zones). Write latency is sub-2ms.
+- We deploy **Kafka MirrorMaker 2 (MM2)** to replicate topics asynchronously across the datacenters.
+
+To prevent infinite replication loops (`DC-A -> DC-B -> DC-A -> DC-B`), MM2 automatically prefixes replicated topics with the source cluster alias:
+
+```
+DC-A Local Topic:  coupon.redemptions
+Mirrored to DC-B:  dca.coupon.redemptions
+
+DC-B Local Topic:  coupon.redemptions
+Mirrored to DC-A:  dcb.coupon.redemptions
+```
+
+Our consumer applications in DC-A subscribe using a regular expression pattern that dynamically consumes both local and mirrored events:
+
+```java
+@Configuration
+public class KafkaConsumerConfig {
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, CouponRedeemedEvent> kafkaListenerContainerFactory(
+            ConsumerFactory<String, CouponRedeemedEvent> consumerFactory) {
+        
+        ConcurrentKafkaListenerContainerFactory<String, CouponRedeemedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory);
+        factory.setConcurrency(12);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        return factory;
+    }
+}
+
+// Consumer listening to both local and mirrored topics
+@Component
+public class CouponRedemptionEventListener {
+
+    private final IdempotentEventService idempotentService;
+
+    @KafkaListener(
+        topicPattern = ".*coupon\\.redemptions",
+        containerFactory = "kafkaListenerContainerFactory"
+    )
+    public void onCouponRedeemed(ConsumerRecord<String, CouponRedeemedEvent> record) {
+        String eventId = record.value().getEventId();
+        
+        // Ensure idempotency across mirrored clusters
+        if (!idempotentService.tryAcquire(eventId, Duration.ofHours(24))) {
+            log.warn("Duplicate redemption event skipped: {}", eventId);
+            return;
+        }
+        
+        processRedemption(record.value());
+    }
+}
+```
+
+The `idempotentService` leverages Redis with a distributed atomic check (`SET NX EX`) backed by a PostgreSQL `processed_events` table. If the exact same checkout event arrives from both the local topic and the mirrored topic, the duplicate is dropped cleanly in under 0.8ms.
+
+---
+
+## 3. Progressive Active-Zone Shutdown: Shifting 100% Traffic
+
+The true test of an active-active system is not when things are normal; it is what happens when you must perform an emergency evacuation of an entire datacenter.
+
+Suppose DC-A experiences severe power distribution degradation or a major Kubernetes control plane failure. You cannot simply flip a global DNS record and slam 3.5M RPM of traffic into DC-B instantaneously. Doing so will blow past DC-B's active connection limits, starve HikariCP connection pools, trigger thread thrashing, and take down DC-B as well.
+
+We designed an automated **4-Stage Progressive Zone Evacuation Pipeline**:
+
+```
+[Normal: 50% / 50%]
+   DC-A: ██████████ 50% (3.5M RPM)
+   DC-B: ██████████ 50% (3.5M RPM)
+         │
+         ▼ [Stage 1: HPA Pre-Warm & Canary Bleed (70% / 30%)]
+   DC-A: ██████ 30%
+   DC-B: ██████████████ 70%  (DC-B autoscalers scale pods up +50%)
+         │
+         ▼ [Stage 2: Ingress Draining (90% / 10%)]
+   DC-A: ██ 10%
+   DC-B: ██████████████████ 90% (PreStop lifecycle hooks trigger)
+         │
+         ▼ [Stage 3: Full Cut & Queue Drain (100% / 0%)]
+   DC-A: 0% (HTTP traffic fully evacuated)
+   DC-B: ████████████████████ 100% (7M RPM absorbed cleanly)
+```
+
+### Stage 1: Pre-Warming & Pod Headroom Expansion
+Before any traffic is steered away from DC-A, the orchestration pipeline fires an API call to DC-B's Kubernetes cluster to pre-scale the deployment replicas.
+
+Because spinning up 1,000+ JVM pods takes several minutes, we utilize **Over-provisioning Pause Pods** (low-priority balloon pods with `-1` priority class). When DC-B needs immediate compute capacity, the Kubernetes scheduler instantly preempts the balloon pods, giving newly scheduled checkout JVM pods instant access to pre-allocated bare-metal nodes without waiting for cluster autoscaler node spin-up.
+
+### Stage 2: Weight Adjustment at Global Ingress
+We adjust the routing weights at the Edge Gateway using an automated Ansible/Nginx API integration:
+
+```nginx
+# Dynamic Upstream Route Configuration
+upstream checkout_backend_cluster {
+    zone checkout_upstream 512k;
+    
+    # Normal: weight=50 weight=50
+    # Stage 1: weight=30 weight=70
+    # Stage 3: down / weight=100
+    server ingress-dc-a.internal:443 weight=10 max_fails=3 fail_timeout=5s;
+    server ingress-dc-b.internal:443 weight=90 max_fails=3 fail_timeout=5s;
+}
+```
+
+### Stage 3: Graceful HTTP Pod Drain via PreStop Hooks
+When traffic is pulled from DC-A, running pods in DC-A must complete in-flight transactions without dropping socket connections:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coupon-checkout-service
+spec:
+  replicas: 120
+  template:
+    spec:
+      containers:
+      - name: coupon-app
+        image: coupon-service:v4.18.2
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+```
+
+The 15-second `preStop` sleep allows the Kubernetes Ingress controller and Envoy proxies to remove the terminating pod IP from active endpoint routing tables before the application receives the `SIGTERM` signal. The Spring Boot application then enters its graceful shutdown phase:
+
+```properties
+# application.properties
+server.shutdown=graceful
+spring.lifecycle.timeout-per-shutdown-phase=30s
+```
+
+### Stage 4: Idle Replica Scale-Down in Evacuated Zone
+Once DC-A's HTTP ingress drops to 0 RPM, we do not leave hundreds of high-memory pods running hot in DC-A. We automatically scale non-critical worker workloads down to maintain basic health checks, freeing up node memory while leaving database nodes and Kafka brokers active to continue processing mirrored replication queues.
+
+---
+
+## 4. Holding Read Latency p99 at 63ms: The Chaos Tests
+
+Running active-active is meaningless if an infrastructure blip in one datacenter degrades customer experience in the other. Our Service Level Objective (SLO) requires that **checkout coupon evaluation p99 latency must not exceed 80ms** under any single datacenter degradation.
+
+To continuously validate this, we run automated Chaos Engineering experiments directly in our production-mirror staging environments using Chaos Mesh and LitmusChaos.
+
+### The Experiment: Cross-DC Fiber Cut & Packet Drop Simulation
+
+We injected a network chaos experiment into our dark fiber routing interfaces:
+- **Packet Delay:** +120ms injected latency between DC-A and DC-B.
+- **Packet Loss:** 20% random packet drop on inter-DC replication links.
+- **Duration:** 30 minutes sustained during a 5M RPM continuous load test.
+
+```
+       [Traffic: 5.2M RPM Sustained]
+                     │
+      ┌──────────────┴──────────────┐
+      │                             │
+    [DC-A]                        [DC-B]
+      │                             │
+      └───[ Chaos Mesh: 120ms Delay ]───┘
+          [ + 20% Packet Loss       ]
+```
+
+### The Architectural Defensive Layers
+
+Here is how our stack absorbed the chaos without breaching our latency SLO:
+
+#### 1. Caffeine L1 In-Memory Caching (Zero-Hop Reads)
+Over 85% of coupon metadata (campaign rules, category exclusions, discount percentages) is read-heavy and changes infrequently. We cache these entities in-process using Caffeine:
+
+```java
+@Configuration
+@EnableCaching
+public class CacheConfig {
+
+    @Bean
+    public CacheManager cacheManager() {
+        CaffeineCacheManager cacheManager = new CaffeineCacheManager("campaignRules");
+        cacheManager.setCaffeine(Caffeine.newBuilder()
+                .maximumSize(50_000)
+                .expireAfterWrite(30, TimeUnit.SECONDS)
+                .recordStats());
+        return cacheManager;
+    }
+}
+```
+
+Even if cross-datacenter replication lag climbs during fiber degradation, local reads hit local heap memory in **sub-0.1ms**.
+
+#### 2. Resilience4j Circuit Breakers with Fallback
+When a service in DC-A attempts to verify customer eligibility, any secondary dependency that attempts cross-DC communication is wrapped in a circuit breaker configured with strict sliding-window latency thresholds:
+
+```yaml
+resilience4j.circuitbreaker:
+  instances:
+    crossDcVerificationService:
+      slidingWindowType: COUNT_BASED
+      slidingWindowSize: 100
+      minimumNumberOfCalls: 20
+      failureRateThreshold: 30
+      slowCallRateThreshold: 50
+      slowCallDurationThreshold: 100ms
+      waitDurationInOpenState: 10s
+      permittedNumberOfCallsInHalfOpenState: 10
+```
+
+If inter-DC calls begin timing out or exceeding 100ms, the circuit trips instantly, falling back to local cached snapshots and conservative local evaluation rules.
+
+### The Chaos Test Latency Metrics
+
+Here are the real Grafana metrics recorded during our 30-minute cross-DC fiber degradation test:
+
+```
+Metric (Checkout Read Path)  │ Normal State (50/50) │ Fiber Chaos Injected │ 100% Failover Shift
+─────────────────────────────┼──────────────────────┼──────────────────────┼────────────────────
+Throughput (RPM)             │ 5,200,000            │ 5,200,000            │ 5,200,000
+p50 Latency                  │ 14 ms                │ 16 ms                │ 18 ms
+p90 Latency                  │ 38 ms                │ 41 ms                │ 44 ms
+p99 Latency                  │ 58 ms                │ 63 ms                │ 68 ms
+p99.9 Latency                │ 112 ms               │ 128 ms               │ 139 ms
+XDCR Replication Lag         │ 4.2 ms               │ 3,420 ms (Queued)    │ N/A (Evacuated)
+HTTP 5xx Error Rate          │ 0.0001%              │ 0.0004%              │ 0.0002%
+```
+
+```
+Latency Distribution under Inter-DC Chaos (p99 vs SLA Ceiling)
+
+80ms SLA ─────────────────────────────────────────────────────────── [SLA Ceiling]
+                    ┌────────────────────────┐
+63ms p99 ───────────│ Chaos Test Window      │─────────── (Held well below limit)
+58ms p99 ───────────┘ (Fiber Cut: 120ms lag) └───────────
+         00:00        00:10        00:20       00:30        00:40 (Time)
+```
+
+The test proved our core architectural invariant: **XDCR replication lag grew to 3.4 seconds while the fiber was degraded, but customer-facing checkout p99 latency held steady at 63ms.** 
+
+Why? Because no checkout read request ever waited synchronously on the cross-datacenter replication link. The asynchronous queue buffered the mutations, and the moment the chaos was removed, Couchbase XDCR drained the 3.4-second backlog in under 45 seconds.
+
+---
+
+## Production Rules for Multi-Datacenter Systems
+
+If you are designing or scaling an active-active multi-datacenter backend, keep these rules pinned to your engineering handbook:
+
+1. **Local Reads and Local Writes Only:** Every read and write path required to finish a business transaction must terminate inside the local datacenter boundary. Cross-DC links are strictly for asynchronous replication.
+2. **Never Stretched Kafka Across DCs:** Stretched Kafka clusters are an operational nightmare during network partitions. Run independent brokers per DC and replicate via MirrorMaker 2 with source-prefixed topics.
+3. **Design for Conflict Avoidance, Not Conflict Resolution:** Avoid concurrent mutations on the same document key. Use deterministic session hashing at your ingress to steer customers to a specific DC, and use partitioned append-only deltas for shared global counters.
+4. **Pre-Warm Capacity Before Draining:** You cannot shift 3.5M RPM into a partner datacenter without pre-warming JVM pod pools. Keep low-priority balloon pods running in Kubernetes to guarantee instantaneous compute preemption.
+5. **Chaos Is the Only Proof:** If you have not severed the network between your datacenters during an active load test, you do not have an active-active architecture—you have an untested hypothesis. <Twemoji emoji="check-mark" />

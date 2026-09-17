@@ -7,18 +7,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'POST') {
       let newOrUpdatedViews = await __db.views.upsert({
         where: { slug },
-        create: {
-          slug,
-        },
-        update: {
-          count: {
-            increment: 1,
-          },
-        },
+        create: { slug },
+        update: { count: { increment: 1 } },
       })
-      return res.status(200).json({
-        total: newOrUpdatedViews.count.toString(),
-      })
+      return res.status(200).json({ total: newOrUpdatedViews.count.toString() })
     }
     if (req.method === 'GET') {
       let views = await __db.views.findUnique({

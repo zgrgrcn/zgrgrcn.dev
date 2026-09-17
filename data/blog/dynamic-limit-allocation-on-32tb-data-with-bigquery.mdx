@@ -1,0 +1,326 @@
+---
+title: 'Analyzing 32 TB of Coupon Data: Designing Dynamic Allocation to Eliminate System Waste'
+date: '2025-01-22'
+tags: ['bigquery', 'data-engineering', 'algorithms', 'optimization', 'backend']
+draft: false
+summary: 'How querying a 32 TB coupon analytics dataset in BigQuery exposed massive promotional waste, unmasked a silent country-level zero-coupon script bug, and inspired an automated dynamic allocation algorithm.'
+images: ['/static/images/banner-bigquery-32tb.png']
+authors: ['default']
+---
+
+import Twemoji from './Twemoji.tsx'
+
+![thumbnail-image](/static/images/banner-bigquery-32tb.png)
+
+When backend engineers think about system optimization, we typically gravitate toward code-level profiling, tuning HikariCP connection pools, caching hot entities in Redis, or rewriting database queries. 
+
+But sometimes, the most catastrophic performance bottlenecks and infrastructure costs do not originate in bad Java code or missing database indexes—they originate in **flawed domain assumptions hardcoded into business allocation logic**.
+
+At Trendyol, our coupon platform is responsible for allocating, storing, evaluating, and redeeming promotional discounts for tens of millions of active e-commerce customers across multiple countries. Every month, automated marketing jobs and real-time triggers generate billions of coupon records.
+
+Six months ago, our persistence tier was feeling severe strain:
+- Our Couchbase clusters were storing over **450 Million active coupon documents**, consuming hundreds of gigabytes of expensive RAM quotas.
+- Batch generation pipelines were running for hours every morning, flooding our Kafka brokers and database write queues.
+- Yet, our aggregate coupon redemption rate hovered at a meager **3.8%**. Over 96% of generated coupons expired without ever being used.
+
+To understand why our databases were being crushed to store coupons that nobody redeemed, I dove into our **32 Terabyte historical analytics warehouse in Google BigQuery**. 
+
+What began as an infrastructure capacity investigation turned into a wild backend war story: we designed a quality-based dynamic allocation algorithm that eliminated 64% of database generation waste, boosted redemption conversion by 3x, and accidentally uncovered a silent upstream data pipeline bug that had been starving entire country cohorts of coupons for months.
+
+---
+
+## The Scale of the Warehouse & The Investigation
+
+Our transactional systems stream every coupon mutation (generation, assignment, basket evaluation, expiration, and checkout redemption) to Google Cloud Storage via Kafka Connect, which continuously ingests into BigQuery.
+
+The primary table `analytics_promotions.coupon_lifecycle_events` spanned:
+- **Volume:** 32.4 TB uncompressed data across 3 years.
+- **Rows:** ~48 Billion events.
+- **Partitioning:** Daily ingestion date (`_PARTITIONDATE`).
+- **Clustering:** `customer_id`, `campaign_id`, `country_code`.
+
+Querying 32 TB without running up thousands of dollars in GCP slot fees requires surgical SQL. By always filtering on partition date boundaries and clustering keys, we narrowed our analytical scans from terabytes down to targeted gigabyte chunks.
+
+### The First Query: Distribution vs Redemption by Customer Decile
+
+Our legacy generation pipeline used a flat allocation rule: **every eligible customer was allocated up to 15 coupons simultaneously across various categories** (Electronics, Fashion, Grocery, Supermarket).
+
+To test whether this flat policy made any business sense, I ran a decile analysis across customer purchase propensity and historical spend:
+
+```sql
+-- Analysis: Coupon Utilization by Customer Spend Decile
+WITH customer_activity AS (
+    SELECT 
+        customer_id,
+        NTILE(10) OVER (ORDER BY SUM(gross_merchandise_value) DESC) AS spend_decile,
+        COUNT(DISTINCT order_id) AS total_orders,
+        DATE_DIFF(CURRENT_DATE(), MAX(DATE(order_created_at)), DAY) AS days_since_last_order
+    FROM `analytics_orders.customer_order_summary`
+    WHERE _PARTITIONDATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+    GROUP BY customer_id
+),
+coupon_metrics AS (
+    SELECT 
+        customer_id,
+        COUNTIF(event_type = 'ASSIGNED') AS total_assigned,
+        COUNTIF(event_type = 'REDEEMED') AS total_redeemed,
+        COUNTIF(event_type = 'EXPIRED') AS total_expired
+    FROM `analytics_promotions.coupon_lifecycle_events`
+    WHERE _PARTITIONDATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+    GROUP BY customer_id
+)
+SELECT 
+    ca.spend_decile,
+    COUNT(ca.customer_id) AS total_customers,
+    ROUND(AVG(cm.total_assigned), 1) AS avg_coupons_assigned,
+    ROUND(AVG(cm.total_redeemed), 1) AS avg_coupons_redeemed,
+    ROUND(SAFE_DIVIDE(SUM(cm.total_redeemed), SUM(cm.total_assigned)) * 100, 2) AS redemption_rate_pct,
+    ROUND(SAFE_DIVIDE(SUM(cm.total_expired), SUM(cm.total_assigned)) * 100, 2) AS expired_rate_pct
+FROM customer_activity ca
+JOIN coupon_metrics cm ON ca.customer_id = cm.customer_id
+GROUP BY ca.spend_decile
+ORDER BY ca.spend_decile ASC;
+```
+
+### The Shocking Finding: 74% Flat Waste
+
+The query results exposed an alarming reality:
+
+```
+Spend Decile │ Avg Assigned │ Avg Redeemed │ Redemption % │ Expired % │ Behavior
+─────────────┼──────────────┼──────────────┼──────────────┼───────────┼───────────────────────────
+Decile 1 (VIP)│ 15.0         │ 3.2          │ 21.3%        │ 78.7%     │ High intent, capped by limits
+Decile 2     │ 15.0         │ 1.8          │ 12.0%        │ 88.0%     │ Active, moderate basket
+Decile 3     │ 15.0         │ 0.9          │ 6.0%         │ 94.0%     │ Occasional shopper
+Decile 4     │ 15.0         │ 0.5          │ 3.3%         │ 96.7%     │ Low conversion
+Decile 5-7   │ 15.0         │ 0.1          │ 0.7%         │ 99.3%     │ Price sensitive / irregular
+Decile 8-10  │ 15.0         │ 0.01         │ 0.07%        │ 99.93%    │ Dormant / churned accounts
+```
+
+Look at Deciles 8 through 10. Millions of users who had not opened the application in over 180 days were being continuously assigned **15 active coupons every single week**. 
+
+Our backend services were dutifully:
+1. Running heavy batch generation queries every morning.
+2. Writing over 250 million documents into Couchbase with 14-day TTLs.
+3. Indexing those documents into Elasticsearch.
+4. Serializing them across Kafka topics.
+
+All to serve accounts that had a **0.07% probability of ever opening the app**. We were melting our persistence layer and storage budgets to store digital ghost papers.
+
+Meanwhile, our highest-value shoppers (Decile 1) were hitting their hardcoded 15-coupon limit and being blocked from receiving relevant, high-margin category incentives that they would have eagerly used.
+
+---
+
+## The Upstream Bug: The Country Cohort Black Hole
+
+While digging into the data to parameterize customer segments, I ran a geographical sanity query grouping coupon assignment rates across countries:
+
+```sql
+-- Sanity Check: Coupon Lifecycle Events by Country Cohort
+SELECT 
+    country_code,
+    currency,
+    COUNT(DISTINCT customer_id) AS distinct_customers_targeted,
+    COUNTIF(event_type = 'ASSIGNED') AS total_assigned_coupons,
+    COUNTIF(event_type = 'REDEEMED') AS total_redeemed_coupons
+FROM `analytics_promotions.coupon_lifecycle_events`
+WHERE _PARTITIONDATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+GROUP BY country_code, currency
+ORDER BY distinct_customers_targeted DESC;
+```
+
+When the query finished, the output left me staring at the screen in disbelief:
+
+```
+country_code │ currency │ targeted_users │ total_assigned │ total_redeemed
+─────────────┼──────────┼────────────────┼────────────────┼───────────────
+TR           │ TRY      │ 38,420,110     │ 312,450,000    │ 12,180,000
+DE           │ EUR      │ 1,840,200      │ 0              │ 0
+AZ           │ AZN      │ 920,450        │ 0              │ 0
+AE           │ AED      │ 410,000        │ 0              │ 0
+```
+
+Over **3.1 Million active international customers** across Germany, Azerbaijan, and the UAE were targeted by marketing campaigns, but **zero coupons had been assigned to them for over two months**.
+
+### Root-Cause Debugging: The Silent Exception
+
+We immediately pulled the codebase of the upstream campaign pre-filtering service (a Python/Airflow batch component that filtered candidate users before passing IDs to our high-throughput Java coupon generator).
+
+Deep inside an unheralded utility method, we found this:
+
+```python
+# The Culprit: Currency Normalization Utility
+def validate_customer_currency(customer_record, campaign_target):
+    try:
+        # Legacy check assumed currency was stored as string enum matching campaign
+        cust_curr = customer_record.get("preferred_currency")
+        target_curr = campaign_target.get("currency")
+        
+        # Bug: Upstream user profile service migrated international users
+        # to ISO-4217 integer codes (EUR=978, AZN=944, AED=784), while 
+        # campaign definitions still used string codes ("EUR", "AZN", "AED").
+        if cust_curr != target_curr:
+            return False
+            
+        return True
+    except Exception as e:
+        # Anti-Pattern: Silent catch-all with zero metric logging!
+        logger.debug(f"Currency mismatch error: {e}")
+        return False
+```
+
+The user profile service had rolled out an internationalization refactor months earlier, converting customer currency preferences to numeric ISO codes. Because the Airflow task swallowed the mismatch and logged it as a debug trace, the job exited cleanly with code `0`. 
+
+Airflow reported green runs every single day. Prometheus reported zero HTTP 500 errors. But 3 million international users had been silently dropped from every promotional campaign.
+
+Within 48 hours of uncovering this in BigQuery, we patched the schema validator, deployed strict type assertions, added Datadog counter alerts on `promotion.allocation.dropped_user_count`, and unlocked millions in dormant international Gross Merchandise Value (GMV).
+
+---
+
+## Designing the Quality-Based Dynamic Limit Algorithm
+
+Once the upstream pipeline was repaired, we set out to permanently solve the database waste problem. We replaced the naive static $N=15$ coupon cap with an intelligent **Quality-Based Dynamic Limit Algorithm**.
+
+```
+[Customer Profile & Historical Signals]
+                  │
+                  ▼
+   ┌──────────────────────────────┐
+   │ Dynamic Scorer (ML / BigQuery│
+   │ Daily Export to Feature Store│
+   └──────────────┬───────────────┘
+                  │
+         Propensity Score [0.0 - 1.0]
+                  │
+                  ▼
+   ┌────────────────────────────────────────────────────────┐
+   │ Dynamic Limit Allocation Function                      │
+   │                                                        │
+   │ Tier A (VIP / High Intent):  Limit = 25 (High Quota)   │
+   │ Tier B (Regular Shoppers):   Limit = 12                │
+   │ Tier C (Low Engagement):     Limit = 4                 │
+   │ Tier D (Dormant / Inactive): Limit = 0 (On-Demand Only)│
+   └────────────────────────────────────────────────────────┘
+```
+
+### The Mathematical Model
+
+Instead of treating all accounts equally, we compute a normalized customer activity score `S` between `0.0` and `1.0` updated daily via a batch BigQuery ML job and loaded into a Redis feature cache:
+
+```
+Score (S) = (w1 * R_norm) + (w2 * F_norm) + (w3 * H_redemption) + (w4 * C_intent)
+```
+
+Where:
+- `R_norm`: Recency score based on days since last checkout (logarithmically decayed).
+- `F_norm`: Order frequency over the last 90 days.
+- `H_redemption`: Historical coupon redemption ratio (coupons redeemed / coupons seen in basket).
+- `C_intent`: Real-time basket activity signal (whether the user searched or added an item to cart in the last 48 hours).
+
+The customer dynamic allocation cap `L(S)` is determined by a stepped piecewise function with a floor and ceiling:
+
+```java
+public class DynamicAllocationEngine {
+
+    private static final int TIER_A_MAX_LIMIT = 25;
+    private static final int TIER_B_MAX_LIMIT = 12;
+    private static final int TIER_C_MAX_LIMIT = 4;
+    private static final int TIER_D_MAX_LIMIT = 0;
+
+    public AllocationDecision calculateLimit(CustomerProfile profile) {
+        // Inactive / Dormant accounts: Do not pre-generate!
+        if (profile.getDaysSinceLastActivity() > 90 && !profile.hasRecentCartActivity()) {
+            return new AllocationDecision(TIER_D_MAX_LIMIT, AllocationStrategy.LAZY_ON_DEMAND);
+        }
+
+        double score = computePropensityScore(profile);
+
+        if (score >= 0.80) {
+            // Power shoppers: Expand limit to prevent promotion starvation
+            return new AllocationDecision(TIER_A_MAX_LIMIT, AllocationStrategy.EAGER_PRELOAD);
+        } else if (score >= 0.45) {
+            // Regular buyers: Moderate limit
+            return new AllocationDecision(TIER_B_MAX_LIMIT, AllocationStrategy.EAGER_PRELOAD);
+        } else if (score >= 0.15) {
+            // Low intent: Restrictive limit to high-margin coupons only
+            return new AllocationDecision(TIER_C_MAX_LIMIT, AllocationStrategy.EAGER_PRELOAD);
+        } else {
+            // Churned: Zero pre-generation
+            return new AllocationDecision(TIER_D_MAX_LIMIT, AllocationStrategy.LAZY_ON_DEMAND);
+        }
+    }
+
+    private double computePropensityScore(CustomerProfile p) {
+        double recency = Math.exp(-0.03 * p.getDaysSinceLastActivity());
+        double frequency = Math.min(1.0, p.getOrderCount90Days() / 10.0);
+        double redemptionHistory = p.getHistoricalRedemptionRate();
+        double cartIntent = p.hasRecentCartActivity() ? 1.0 : 0.0;
+
+        return (0.30 * recency) + (0.25 * frequency) + (0.30 * redemptionHistory) + (0.15 * cartIntent);
+    }
+}
+```
+
+### The Lazy "On-Demand" Re-Activation Pattern
+
+Notice the `AllocationStrategy.LAZY_ON_DEMAND` for Tier D customers. 
+
+Instead of generating and persisting 15 coupons into Couchbase every week for a dormant user who hasn't visited in 6 months, we generate **zero documents**. 
+
+If that user suddenly clicks a marketing push notification or opens the app:
+1. The API Gateway detects an authenticated session for a Tier D user.
+2. The service executes an asynchronous, lightweight "Welcome Back" on-demand coupon synthesis in sub-40ms.
+3. Two highly attractive, personalized vouchers are written to Couchbase on the fly.
+
+We only spend database disk, RAM, and write IOPS **at the exact moment a dormant user demonstrates real intent**.
+
+---
+
+## Infrastructure Impact & Production Results
+
+We deployed the Dynamic Limit Allocation Engine in staging, verified consistency against our load-test data generator, and rolled it out gradually across 100% of production traffic.
+
+The impact across both systems infrastructure and business metrics was profound.
+
+### 1. Couchbase Storage & Memory Footprint
+
+By eliminating eager coupon generation for dormant accounts and resizing active caps based on propensity, our active document count dropped precipitously:
+
+```
+Active Couchbase Coupon Documents (Millions)
+500M ──┐
+450M   ├─ Legacy Flat Policy (450M Docs)
+400M   │
+300M   │
+200M   │                     ┌─ Dynamic Allocation Live (162M Docs)
+100M   │                     ▼
+  0M   └─────────────────────────────────────────────────────────────
+       Oct        Nov        Dec        Jan        Feb (Months)
+```
+
+- **Active Document Count:** Dropped from **450 Million to 162 Million** (-64% reduction).
+- **RAM Reclaimed:** 310 GB of high-speed memory freed in Couchbase data nodes.
+- **Daily Write IOPS:** Daily generation batch write spikes dropped by **58%**, drastically decreasing replication lag on our cross-datacenter XDCR links.
+
+### 2. Business Conversion Metrics
+
+```
+Metric                          │ Before (Flat Limit) │ After (Dynamic Allocation) │ Net Impact
+────────────────────────────────┼─────────────────────┼────────────────────────────┼───────────
+Active Coupon Docs in DB        │ 450,000,000         │ 162,000,000                │ -64.0%
+Couchbase Memory Usage (RAM)    │ 840 GB              │ 530 GB                     │ -36.9%
+Morning Generation Batch Time   │ 3 hrs 45 mins       │ 1 hr 12 mins               │ -68.0%
+Aggregate Redemption Rate       │ 3.8%                │ 11.4%                      │ +200% (3x)
+VIP (Decile 1) Redemption Lift  │ 21.3%               │ 34.8%                      │ +63.3%
+International Active Coupons    │ 0 (Buggy)           │ 4,200,000                  │ Restored
+```
+
+By increasing limits for high-intent shoppers (Tier A) from 15 to 25, VIP shoppers redeemed significantly more promotional vouchers. And by shifting dormant accounts to on-demand generation, we eliminated over 280 million useless documents from our active database working set.
+
+---
+
+## What Staff Engineers Should Take Away
+
+1. **Big Data Is a Production Debugger:** Do not leave BigQuery or Snowflake solely to data analysts and product managers. As backend and distributed systems engineers, querying warehouse access patterns often reveals systemic architectural flaws that APM tracing tools can never see.
+2. **Beware the "Silent Green" Pipeline:** Airflow tasks, batch workers, and cron scripts that catch exceptions without incrementing anomaly counters are ticking time bombs. A job returning exit code 0 while producing 0 outputs is an outage.
+3. **Question Static Business Constants:** Whenever you see `MAX_LIMIT = 15` or `DEFAULT_TIMEOUT = 5000` hardcoded in your domain layer, ask: *What happens to our database tier if 50 million users hit this simultaneously?* Dynamic, context-aware limits preserve infrastructure stability and maximize business yield. <Twemoji emoji="chart-increasing" />

@@ -16,6 +16,11 @@ import Umami from '~/icons/umami.svg'
 import Vercel from '~/icons/vercel.svg'
 import Mongo from '~/icons/mongo.svg'
 import GoogleDomains from '~/icons/google-domains.svg'
+import Coolify from '~/icons/coolify.svg'
+import Postgres from '~/icons/postgresql.svg'
+import Drizzle from '~/icons/drizzle.svg'
+import Cloudflare from '~/icons/cloudflare.svg'
+import Docker from '~/icons/docker.svg'
 
 export let DevIconsMap = {
   React,
@@ -36,6 +41,12 @@ export let DevIconsMap = {
   Spotify,
   Mongo,
   GoogleDomains,
+  Coolify,
+  Postgres,
+  PostgreSQL: Postgres,
+  Drizzle,
+  Cloudflare,
+  Docker,
 }
 
 export function DevIcon(props: { type: keyof typeof DevIconsMap; className?: string }) {

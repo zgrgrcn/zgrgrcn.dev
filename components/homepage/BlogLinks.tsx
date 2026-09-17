@@ -11,12 +11,6 @@ export function BlogLinks() {
           My writings
         </span>
       </Link>
-      <Link href="/snippets" className="hover:underline">
-        <Twemoji emoji="dna" />
-        <span data-umami-event="home-link-snippets" className="ml-1.5">
-          My snippets collection
-        </span>
-      </Link>
       <Link href="/projects" className="hover:underline">
         <Twemoji emoji="hammer-and-wrench" />
         <span data-umami-event="home-link-projects" className="ml-1.5">

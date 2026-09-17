@@ -1,0 +1,132 @@
+---
+title: 'Zero-Downtime Database Migration: From Couchbase to PostgreSQL'
+date: '2025-05-14'
+tags: ['architecture', 'postgresql', 'couchbase', 'database-migration', 'zero-downtime']
+draft: false
+summary: 'How we migrated a critical production service from Couchbase to PostgreSQL with zero downtime, dual-write synchronization, and automated consistency verification.'
+images: ['/static/images/banner-database-migration.png']
+authors: ['default']
+---
+
+import Twemoji from './Twemoji.tsx'
+
+![thumbnail-image](/static/images/banner-database-migration.png)
+
+Migrating databases in a system handling millions of requests per minute without dropping a single write or causing downtime is one of the most nerve-wracking operations in backend engineering. 
+
+Recently, we migrated one of our core services from Couchbase to PostgreSQL. The service was originally designed on a document store, but as business invariants evolved, we found ourselves needing strong relational guarantees, multi-table transactions, and complex query patterns that were becoming increasingly brittle to maintain over document key-value lookups.
+
+Here is an architectural walkthrough of how we executed this migration with zero downtime, zero data loss, and an instant rollback safety net.
+
+## The Challenge
+
+The service operates on the checkout critical path. Any downtime or data inconsistency directly translates to checkout errors:
+- **Traffic:** Thousands of writes and reads per second sustained.
+- **Constraints:** Zero maintenance window. No bulk offline sync allowed.
+- **Data volume:** Hundreds of millions of documents with active lifecycle updates.
+
+Taking the service offline for a maintenance window to run a batch export/import was out of the question. We needed an online, phased migration strategy.
+
+## The Strategy: 5-Phase Dual-Write & Shadowing
+
+We broke down the migration into five decoupled phases:
+
+```
+[Client Request]
+       │
+       ▼
+ ┌─────────────┐
+ │ Service App │
+ └──────┬──────┘
+        │
+        ├────────────► [Primary: Couchbase] (Synchronous)
+        │
+        └─(Async)────► [Secondary: PostgreSQL] (Dual-Write)
+                             ▲
+                             │ (Reconciliation Worker)
+```
+
+### 1. Repository Abstraction
+
+Before touching any database connections, we introduced a repository abstraction layer over the domain model. Up until this point, Couchbase SDK calls were lightly coupled to service-layer methods.
+
+```java
+public interface CouponRepository {
+    Optional<Coupon> findById(String id);
+    Coupon save(Coupon coupon);
+    void updateStatus(String id, CouponStatus status);
+}
+```
+
+We created a `DualWriteCouponRepository` that implemented this interface and acted as a decorator over both `CouchbaseCouponRepository` and `PostgresCouponRepository`.
+
+### 2. Dual-Writing with Fire-and-Forget Resilience
+
+The first operational step was writing new incoming mutations to both databases:
+1. **Primary Write:** Writes to Couchbase synchronously. If Couchbase fails, the request fails (preserving original system behavior).
+2. **Secondary Write:** Writes to PostgreSQL asynchronously or via an internal event loop. If PostgreSQL fails, it does **not** fail the incoming client request; instead, the failure is logged and pushed to a Dead Letter Queue (DLQ).
+
+```java
+@Override
+public Coupon save(Coupon coupon) {
+    // 1. Primary write to Couchbase
+    Coupon saved = couchbaseRepo.save(coupon);
+    
+    // 2. Asynchronous secondary write to PostgreSQL
+    CompletableFuture.runAsync(() -> {
+        try {
+            postgresRepo.save(saved);
+        } catch (Exception ex) {
+            log.error("Dual-write failure to Postgres for id: {}", saved.getId(), ex);
+            dlqProducer.send("postgres-migration-dlq", saved.getId());
+        }
+    }, migrationExecutor);
+    
+    return saved;
+}
+```
+
+### 3. Historical Data Backfill
+
+With dual-writing live, all new and updated records were reaching PostgreSQL. We then needed to copy all historical records that hadn't been modified since dual-writing began.
+
+We used a cursor-based batch worker reading keys from Couchbase and writing them to PostgreSQL using `INSERT ... ON CONFLICT DO NOTHING`. Why `DO NOTHING`? Because if a record had already been updated by the dual-writer during the backfill period, PostgreSQL already possessed the newer version.
+
+### 4. Background Consistency Verification & Shadow Reading
+
+Once the backfill completed, we needed mathematical proof that both databases were identical.
+
+We built two verification mechanisms:
+- **Reconciliation Engine:** A scheduled worker that hashed records across both databases in batch ranges and surfaced any discrepancies.
+- **Shadow Reads:** In the application read path, we read from Couchbase, concurrently read from PostgreSQL in a background thread, compared the response payloads, and emitted metric counters for matches vs mismatches.
+
+```java
+public Optional<Coupon> findById(String id) {
+    Optional<Coupon> primary = couchbaseRepo.findById(id);
+    
+    // Shadow read comparison in non-blocking thread
+    CompletableFuture.runAsync(() -> {
+        Optional<Coupon> shadow = postgresRepo.findById(id);
+        metricsService.recordComparison(primary, shadow);
+    });
+    
+    return primary;
+}
+```
+
+We let shadow reading run under high traffic for over a week until we hit 99.999% consistency (the remaining tiny variance was traced to expected in-flight race conditions during write bursts).
+
+### 5. Traffic Switch with Feature Flags
+
+When confidence reached 100%, we toggled the primary database flag:
+1. PostgreSQL became the primary read and primary write target.
+2. Couchbase became the secondary shadow target for 48 hours as a rollback safeguard.
+3. Once post-deploy stability and latency p99 were validated, Couchbase writes were detached completely.
+
+## Key Takeaways
+
+1. **Never migrate in a big bang:** Phased rollouts with shadow reads allow you to catch subtle serialization, timezone, and schema mismatch issues before they ever touch a customer.
+2. **Feature flags are your seatbelt:** Having an instantaneous rollback switch without redeploying saved us during an early load test where connection pool sizing in PostgreSQL needed tuning.
+3. **Dual-write is a pattern, not a permanent state:** Dual-writing introduces inherent eventual consistency window risks. Treat it as a temporary bridge and move through phases decisively.
+
+The repository abstraction we designed for this project became our team's standard blueprint for zero-downtime persistence migrations. <Twemoji emoji="rocket" />

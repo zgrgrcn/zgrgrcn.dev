@@ -1,0 +1,110 @@
+---
+title: 'Taming the N+1 Query Problem at 4 Million Requests Per Minute'
+date: '2024-11-20'
+tags: ['system-design', 'performance', 'distributed-systems', 'high-throughput']
+draft: false
+summary: 'Redesigning our core domain data model: embedding related entities into single documents to eliminate up to 200 DB reads per request and saving 780 GB of disk.'
+images: ['/static/images/banner-high-throughput-n1.png']
+authors: ['default']
+---
+
+import Twemoji from './Twemoji.tsx'
+
+![thumbnail-image](/static/images/banner-high-throughput-n1.png)
+
+When an architecture is running under 4M requests per minute at steady state and spikes toward 7M during mega campaigns, small architectural inefficiencies compound exponentially. A sub-optimal data model that works fine at 500 RPS becomes a cluster-threatening bottleneck at multi-million RPM scale.
+
+In our domain covering 38 services on the checkout critical path, we noticed that our database tier was absorbing an unreasonable read amplification. Looking closely at APM traces revealed a classic culprit disguised in distributed clothing: **an N+1 distributed document lookup pattern**.
+
+Here is how we authored an Architecture Decision Record (ADR), restructured the data model, eliminated up to 200 database reads per request across 11 critical endpoints, and reclaimed 245 GB of RAM and 780 GB of disk space.
+
+## The Problem: Distributed N+1 Lookups
+
+Our original data model stored parent domain entities and their child rule/status entities in normalized, separate documents across Couchbase buckets. 
+
+When a customer opened their checkout basket or checked eligibility for an order:
+1. The gateway requested candidate items.
+2. For each candidate item, the service executed secondary key lookups to fetch attached conditions, quotas, and contextual metadata.
+3. In heavy baskets containing multiple promotional lines, a single client request triggered **between 80 to 200 roundtrips** to the document store.
+
+Even with sub-millisecond document lookups, 200 sequential or batch-parallel network hops added up to high latency variance, high CPU usage on the database cluster, and severe thread pool starvation under sudden campaign traffic spikes.
+
+## The Solution: Document Embedding & Atomic Unit-of-Work
+
+In relational modeling, normalization avoids redundancy. But in high-scale read-heavy document systems, normalization without joins forces the application layer to act as a naive query engine.
+
+We authored an Architecture Decision Record (ADR) proposing an embedded document architecture:
+- Embed related child entities directly into the aggregate root document.
+- Ensure that an entity lookup is always **exactly 1 network hop: $O(1)$ key-value fetch**.
+- Maintain entity mutation consistency via atomic units of work (CAS / optimistic locking).
+
+```json
+// Before: Fragmented Documents
+Key: "coupon:12345"
+Key: "coupon_rule:12345:part_1"
+Key: "coupon_rule:12345:part_2"
+Key: "coupon_quota:12345"
+
+// After: Single Embedded Aggregate Root
+Key: "coupon:12345"
+{
+  "id": "12345",
+  "status": "ACTIVE",
+  "discount": { "type": "PERCENTAGE", "value": 15 },
+  "rules": [
+    { "type": "CATEGORY", "value": "electronics" },
+    { "type": "MIN_BASKET_AMOUNT", "value": 500 }
+  ],
+  "quota": { "total": 100000, "remaining": 42100 }
+}
+```
+
+## Migration Execution with Zero Risk
+
+You cannot simply change the schema of 300 million production documents on a live checkout system. The rollout required defensive engineering:
+
+### 1. Dual-Format Deserialization
+We updated the domain entity deserializers to support both formats simultaneously. If the embedded payload was present, it parsed it directly; if not, it fell back to secondary lookups.
+
+### 2. Atomic CAS Updates Behind Feature Flags
+When modifying records, we transitioned writes to the new embedded structure using optimistic locking (Compare-And-Swap) to prevent concurrent update anomalies across active-active datacenters:
+
+```java
+public void updateCouponAggregate(String id, Consumer<CouponAggregate> mutator) {
+    int attempts = 0;
+    while (attempts++ < MAX_RETRIES) {
+        GetResult result = collection.get(id);
+        CouponAggregate aggregate = result.contentAs(CouponAggregate.class);
+        
+        mutator.accept(aggregate);
+        
+        try {
+            collection.replace(id, aggregate, ReplaceOptions.replaceOptions().cas(result.cas()));
+            return;
+        } catch (CasMismatchException e) {
+            log.warn("CAS mismatch for coupon {}, retrying...", id);
+        }
+    }
+    throw new ConcurrencyException("Failed to update aggregate after max retries: " + id);
+}
+```
+
+### 3. Progressive Rollout & Garbage Collection
+- We enabled write-embedding on 1% of traffic, monitored error rates and latency, and incrementally ramped up to 100%.
+- A background worker crawled the historical dataset, migrated existing documents, and tombstoned obsolete child documents.
+
+## The Results
+
+The payoff went beyond what our initial capacity model predicted:
+
+| Metric | Before Redesign | After Redesign | Improvement |
+| :--- | :--- | :--- | :--- |
+| **DB Operations per Request** | 80 – 200 calls | **1 call** | **>98% reduction** |
+| **Checkout Read Path p99** | ~145 ms | **63 ms** | **~56% faster** |
+| **Active Document Count** | ~480 Million | **~180 Million** | **300M retired** |
+| **Cluster Memory (RAM)** | - | - | **245 GB reclaimed** |
+| **Cluster Storage (Disk)** | - | - | **780 GB freed** |
+
+## Conclusion
+
+At massive scale, architecture is fundamentally about sympathy for the hardware and the network. Reducing distributed network roundtrips through intentional, aggregate-based domain modeling is almost always more effective than attempting to patch bad data models with more caching layers. <Twemoji emoji="clinking-beer-mugs" />
